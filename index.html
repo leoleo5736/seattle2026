@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16302B">
+<title>西雅圖 × 波特蘭</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="西雅圖">
+
+<script>
+/* ============================================================
+   把你部署好的 Apps Script 網址貼在這裡（要以 /exec 結尾）
+   步驟看「部署教學.md」
+   ============================================================ */
+var API_URL = 'https://script.google.com/macros/s/AKfycbyiYn4XLCCyqmgvA9v6Whg3fZbEi_9_8SAL0yC24gxHQm0I2SAx003IsB3HdxWcyGmp/exec';
+</script>
+
+<style>
+/* ============================================================
+   設計語彙：太平洋西北 · 國家公園版畫
+   層層退遠的稜線、雨後杉木的深綠、火車窗口的琥珀光
+   簽名元素是一條縱貫的鐵道線——這趟旅行的骨架就是那條線
+   ============================================================ */
+:root{
+  --fir:#16302B;        /* 濕杉木，近黑的綠 */
+  --pine:#22483C;
+  --moss:#2D6A4F;
+  --glacier:#7FA8A0;    /* 冰河淡青 */
+  --amber:#D89B3C;      /* 車窗的燈光、公園海報的落日 */
+  --amber-lo:#F0D9A8;
+  --salmon:#C25A47;     /* 只用在警告 */
+  --fog:#DCE4E1;        /* 霧，帶綠的冷灰。不是米白 */
+  --fog2:#EEF2F0;
+  --paper:#F7F9F8;
+  --line:rgba(22,48,43,.15);
+  --line2:rgba(22,48,43,.08);
+
+  --display:"Avenir Next Condensed","Arial Narrow","Helvetica Neue",
+            "PingFang TC","Microsoft JhengHei",sans-serif;
+  --sans:"PingFang TC","Noto Sans TC","Microsoft JhengHei",
+         -apple-system,"Helvetica Neue",sans-serif;
+
+  --pad:20px;
+  --r:3px;
+  --rail:34px;          /* 鐵道線離左邊的距離 */
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans);
+  background:var(--fog);
+  color:var(--fir);
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;background:none;border:none;color:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:16px}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--moss);outline-offset:2px}
+
+.eyebrow{
+  font-family:var(--display);
+  font-size:10.5px;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--moss);
+}
+
+/* ============================================================
+   進站畫面
+   ============================================================ */
+#gate{
+  position:fixed;inset:0;z-index:60;
+  background:var(--fog);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:28px 20px calc(28px + env(safe-area-inset-bottom));
+  overflow-y:auto;
+  transition:opacity .5s ease,visibility .5s;
+}
+#gate.hide{opacity:0;visibility:hidden;pointer-events:none}
+
+/* 遠山：三層低對比稜線，壓在畫面底部 */
+.ridge{
+  position:absolute;left:0;right:0;bottom:0;
+  width:100%;height:46vh;min-height:220px;
+  pointer-events:none;
+}
+.gate-inner{
+  position:relative;z-index:1;
+  width:100%;max-width:520px;text-align:center;margin:auto;
+}
+.gate-title{
+  font-family:var(--display);
+  font-size:clamp(34px,10vw,52px);
+  font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  line-height:1.05;margin:10px 0 4px;
+}
+.gate-sub{
+  font-family:var(--display);
+  font-size:13px;letter-spacing:.3em;color:var(--moss);
+  margin-bottom:26px;
+}
+.countdown{
+  font-size:13px;color:rgba(22,48,43,.62);margin:22px 0 4px;
+}
+.countdown b{
+  font-family:var(--display);font-size:24px;
+  letter-spacing:.02em;color:var(--fir);
+  font-variant-numeric:tabular-nums;
+}
+
+/* 路線示意：兩座城市 + 中間的火車 */
+.route{
+  display:flex;align-items:center;justify-content:center;
+  gap:0;margin:4px auto 8px;max-width:400px;
+}
+.route .stop{flex:0 0 auto;text-align:center;padding:0 4px}
+.route .stop b{
+  display:block;font-family:var(--display);
+  font-size:15px;letter-spacing:.08em;text-transform:uppercase;
+}
+.route .stop span{
+  display:block;font-size:10.5px;letter-spacing:.14em;
+  color:rgba(22,48,43,.5);margin-top:1px;
+}
+.route .seg{
+  flex:1 1 auto;position:relative;height:1.5px;
+  background:repeating-linear-gradient(90deg,var(--moss) 0 5px,transparent 5px 10px);
+  margin:0 6px;top:-6px;
+}
+.route .seg::after{
+  content:'';position:absolute;left:50%;top:-7px;
+  transform:translateX(-50%);
+  width:15px;height:15px;border-radius:50%;
+  background:var(--fog);
+  box-shadow:0 0 0 1.5px var(--moss);
+}
+.route .seg i{
+  position:absolute;left:50%;top:-6px;transform:translateX(-50%);
+  font-style:normal;font-size:9px;line-height:13px;
+}
+
+.who{
+  font-family:var(--display);
+  font-size:10.5px;letter-spacing:.3em;text-transform:uppercase;
+  color:rgba(22,48,43,.45);margin:30px 0 16px;
+}
+.picker{display:flex;flex-wrap:wrap;gap:20px 22px;justify-content:center}
+.person{display:flex;flex-direction:column;align-items:center;gap:8px;width:78px}
+.avatar{
+  width:70px;height:70px;border-radius:50%;
+  display:grid;place-items:center;font-size:31px;line-height:1;
+  background:var(--paper);
+  border:1.5px solid var(--line);
+  transition:transform .22s cubic-bezier(.34,1.4,.64,1),box-shadow .22s;
+}
+.person:hover .avatar,.person:focus-visible .avatar{
+  transform:translateY(-3px);
+  box-shadow:0 6px 18px rgba(22,48,43,.16);
+}
+.person span{
+  font-size:12.5px;color:rgba(22,48,43,.78);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78px;
+}
+.avatar.add{
+  font-size:24px;color:var(--glacier);
+  border-style:dashed;background:transparent;
+}
+.picker.manage .person:not([data-addmember])::after{
+  content:'編輯';font-size:10px;letter-spacing:.12em;color:var(--moss);
+}
+.gate-foot{
+  margin-top:30px;font-size:11px;letter-spacing:.06em;
+  color:rgba(22,48,43,.42);line-height:2.2;
+}
+#manageBtn,#tripBtn{
+  font:inherit;letter-spacing:.06em;color:var(--moss);
+  border-bottom:1px solid rgba(45,106,79,.35);
+}
+#manageBtn:hover,#tripBtn:hover{color:var(--fir)}
+
+/* ============================================================
+   App 外框
+   ============================================================ */
+#app{display:none;padding-bottom:92px}
+#app.on{display:block}
+
+header{
+  position:sticky;top:0;z-index:30;
+  background:var(--fir);color:var(--fog2);
+  padding:calc(11px + env(safe-area-inset-top)) var(--pad) 0;
+}
+header .bar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{
+  font-family:var(--display);
+  font-size:14px;letter-spacing:.16em;text-transform:uppercase;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.brand em{font-style:normal;color:var(--glacier)}
+#meBtn{
+  display:flex;align-items:center;gap:7px;flex:0 0 auto;
+  font-size:12px;color:rgba(238,242,240,.8);
+  border:1px solid rgba(127,168,160,.3);
+  border-radius:999px;padding:4px 11px 4px 5px;
+}
+#meBtn .e{
+  width:22px;height:22px;border-radius:50%;
+  display:grid;place-items:center;font-size:13px;
+  background:rgba(127,168,160,.16);
+}
+.tabs{display:flex;gap:2px;margin-top:9px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  font-family:var(--display);
+  font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:rgba(238,242,240,.5);
+  padding:9px 12px 10px;border-bottom:2px solid transparent;
+  white-space:nowrap;flex:0 0 auto;
+}
+.tab.on{color:var(--amber);border-bottom-color:var(--amber)}
+.tab b{
+  font-family:var(--sans);font-size:10px;font-weight:400;
+  margin-left:4px;padding:1px 5px;border-radius:999px;
+  background:rgba(127,168,160,.2);vertical-align:1px;
+}
+.tab b:empty{display:none}
+
+main{padding:var(--pad)}
+section{display:none}
+section.on{display:block}
+
+.shead{margin-bottom:16px}
+.shead h2{
+  font-family:var(--display);
+  font-size:21px;letter-spacing:.05em;font-weight:600;
+}
+.shead p{font-size:12.5px;color:rgba(22,48,43,.55)}
+
+/* ============================================================
+   簽名元素：縱貫鐵道線（日期選擇器）
+   ============================================================ */
+.railwrap{
+  position:relative;
+  margin:0 -4px 18px;
+  overflow-x:auto;scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.railwrap::-webkit-scrollbar{display:none}
+.rail{display:flex;align-items:stretch;padding:2px 4px 6px;gap:0}
+.stn{
+  position:relative;flex:0 0 auto;
+  width:54px;padding:22px 0 6px;
+  text-align:center;
+}
+/* 站與站之間的軌道 */
+.stn::before{
+  content:'';position:absolute;top:9px;left:0;right:0;height:2px;
+  background:var(--glacier);
+}
+.stn:first-child::before{left:50%}
+.stn:last-child::before{right:50%}
+.stn.pdx::before{background:var(--amber)}
+.stn.pdx + .stn.sea::before{
+  background:linear-gradient(90deg,var(--amber) 50%,var(--glacier) 50%);
+}
+.stn.sea + .stn.pdx::before{
+  background:linear-gradient(90deg,var(--glacier) 50%,var(--amber) 50%);
+}
+.stn i{  /* 站點的圓 */
+  position:absolute;top:4px;left:50%;transform:translateX(-50%);
+  width:11px;height:11px;border-radius:50%;
+  background:var(--fog);border:2px solid var(--glacier);
+  transition:transform .18s,background .18s;
+}
+.stn.pdx i{border-color:var(--amber)}
+.stn.on i{
+  background:var(--fir);border-color:var(--fir);
+  transform:translateX(-50%) scale(1.35);
+}
+.stn.ride i{  /* 搭火車那天，站點換成方形 */
+  border-radius:2px;width:13px;height:13px;top:3px;
+}
+.stn u{
+  display:block;font-family:var(--display);
+  font-size:15px;letter-spacing:.02em;text-decoration:none;
+  font-variant-numeric:tabular-nums;
+  color:rgba(22,48,43,.55);
+}
+.stn s{
+  display:block;font-size:9.5px;text-decoration:none;letter-spacing:.1em;
+  color:rgba(22,48,43,.35);
+}
+.stn.on u{color:var(--fir);font-weight:600}
+.stn.on s{color:var(--moss)}
+.stn.today u::after{
+  content:'';display:block;width:4px;height:4px;border-radius:50%;
+  background:var(--salmon);margin:1px auto 0;
+}
+
+.dayhead{
+  display:flex;align-items:flex-end;justify-content:space-between;
+  gap:12px;margin-bottom:14px;
+}
+.dayhead h2{font-family:var(--display);font-size:23px;letter-spacing:.04em}
+.dayhead p{font-size:12px;color:rgba(22,48,43,.55)}
+.daytag{
+  flex:0 0 auto;font-family:var(--display);
+  font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  padding:3px 9px;border-radius:999px;
+  background:var(--glacier);color:var(--fir);
+}
+.daytag.pdx{background:var(--amber)}
+
+/* ============================================================
+   卡片
+   ============================================================ */
+.card{
+  position:relative;
+  background:var(--paper);
+  border:1px solid var(--line2);
+  border-left:2px solid var(--glacier);
+  border-radius:var(--r);
+  padding:13px 14px;margin-bottom:9px;
+}
+.card.pdx{border-left-color:var(--amber)}
+.card.done{opacity:.5}
+.card.done .c-title{text-decoration:line-through}
+.c-top{display:flex;gap:12px;align-items:flex-start}
+.c-time{
+  flex:0 0 52px;font-family:var(--display);
+  font-size:12px;letter-spacing:.06em;color:var(--moss);
+  padding-top:2px;font-variant-numeric:tabular-nums;
+}
+.c-body{flex:1;min-width:0}
+.c-title{font-size:14.5px;line-height:1.5}
+.c-place{font-size:12px;color:rgba(22,48,43,.6);margin-top:3px}
+.maplink{
+  margin-left:7px;font-size:11.5px;color:var(--moss);
+  border-bottom:1px solid rgba(45,106,79,.3);text-decoration:none;
+}
+.c-note{
+  font-size:12.5px;color:rgba(22,48,43,.68);margin-top:5px;
+  padding-left:9px;border-left:2px solid var(--line);
+}
+.stamp{font-size:10.5px;color:rgba(22,48,43,.34);margin-top:6px}
+.c-acts{display:flex;gap:4px;flex:0 0 auto}
+.ibtn{
+  width:30px;height:30px;border-radius:var(--r);
+  display:grid;place-items:center;font-size:14px;
+  color:rgba(22,48,43,.45);
+}
+.ibtn:hover{background:var(--fog);color:var(--fir)}
+.ibtn.tick{font-size:15px}
+.card.done .ibtn.tick{color:var(--moss)}
+
+.addrow{
+  width:100%;padding:11px;border:1px dashed var(--line);
+  border-radius:var(--r);color:var(--moss);
+  font-size:13px;letter-spacing:.04em;margin-top:4px;
+}
+.addrow:hover{background:var(--fog2);border-color:var(--moss)}
+
+.empty{
+  text-align:center;padding:34px 16px;
+  color:rgba(22,48,43,.4);font-size:13px;
+}
+
+/* 城市小標 */
+.citybar{
+  display:flex;align-items:center;gap:9px;
+  margin:20px 0 10px;
+}
+.citybar:first-child{margin-top:0}
+.citybar b{
+  font-family:var(--display);
+  font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--fir);
+}
+.citybar span{flex:1;height:1px;background:var(--line)}
+.citybar em{
+  font-style:normal;font-size:11px;color:rgba(22,48,43,.45);
+  letter-spacing:.08em;
+}
+
+/* 比價卡 */
+.pcard{
+  background:var(--paper);border:1px solid var(--line2);
+  border-radius:var(--r);padding:14px;margin-bottom:9px;
+}
+.p-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.p-name{font-size:14.5px;font-weight:500;line-height:1.45}
+.p-sub{font-size:11.5px;color:rgba(22,48,43,.52);margin-top:2px;letter-spacing:.04em}
+.p-price{
+  flex:0 0 auto;text-align:right;
+  font-family:var(--display);font-size:19px;
+  letter-spacing:.01em;font-variant-numeric:tabular-nums;
+}
+.p-price small{display:block;font-size:10px;letter-spacing:.14em;color:rgba(22,48,43,.45)}
+.p-meta{
+  display:flex;flex-wrap:wrap;gap:5px;margin-top:9px;
+}
+.chipx{
+  font-size:11px;padding:2.5px 8px;border-radius:999px;
+  background:var(--fog);color:rgba(22,48,43,.72);
+}
+.chipx.good{background:rgba(45,106,79,.12);color:var(--moss)}
+.chipx.bad{background:rgba(194,90,71,.12);color:var(--salmon)}
+.p-foot{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;margin-top:11px;padding-top:10px;border-top:1px solid var(--line2);
+}
+.votes{display:flex;align-items:center;gap:6px;font-size:11.5px;color:rgba(22,48,43,.55)}
+.vbtn{
+  font-size:11.5px;letter-spacing:.06em;padding:4px 11px;
+  border:1px solid var(--line);border-radius:999px;color:var(--moss);
+}
+.vbtn.on{background:var(--moss);color:var(--paper);border-color:var(--moss)}
+.plink{font-size:11.5px;color:var(--moss);text-decoration:none;border-bottom:1px solid rgba(45,106,79,.3)}
+
+/* 摘要 */
+.summary{
+  background:var(--fir);color:var(--fog2);
+  border-radius:var(--r);padding:16px 15px;margin-bottom:16px;
+}
+.summary h3{
+  font-family:var(--display);font-size:11px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--amber);
+  font-weight:500;margin-bottom:12px;
+}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px 12px}
+.sgrid div span{
+  display:block;font-size:10px;letter-spacing:.14em;
+  color:rgba(238,242,240,.5);font-family:var(--display);
+  text-transform:uppercase;margin-bottom:1px;
+}
+.sgrid div b{
+  font-family:var(--display);font-size:17px;letter-spacing:.01em;
+  font-weight:500;font-variant-numeric:tabular-nums;
+}
+
+/* 待辦 */
+.todo{
+  display:flex;gap:11px;align-items:flex-start;
+  background:var(--paper);border:1px solid var(--line2);
+  border-radius:var(--r);padding:12px 13px;margin-bottom:8px;
+}
+.todo.ok{opacity:.52}
+.todo.ok .t-title{text-decoration:line-through}
+.tbox{
+  flex:0 0 auto;width:19px;height:19px;border-radius:3px;
+  border:1.5px solid var(--line);margin-top:2px;
+  display:grid;place-items:center;font-size:12px;color:transparent;
+}
+.todo.ok .tbox{background:var(--moss);border-color:var(--moss);color:var(--paper)}
+.t-title{font-size:14px;line-height:1.5}
+.t-detail{font-size:12.5px;color:rgba(22,48,43,.62);margin-top:4px}
+.t-owner{
+  display:inline-block;font-size:10.5px;letter-spacing:.08em;
+  color:var(--moss);margin-top:5px;
+}
+
+/* 提示 */
+.warn{
+  margin:0 0 14px;padding:12px 14px;border-radius:var(--r);
+  background:rgba(194,90,71,.08);border:1px solid rgba(194,90,71,.28);
+  font-size:13px;line-height:1.6;
+}
+.warn button{
+  margin-left:6px;background:var(--salmon);color:var(--paper);
+  border-radius:999px;padding:5px 13px;font-size:12px;
+}
+
+/* 底部狀態 */
+.statusbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:var(--fir);color:rgba(238,242,240,.72);
+  padding:9px var(--pad) calc(9px + env(safe-area-inset-bottom));
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  font-size:11.5px;letter-spacing:.06em;
+}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.dot.ok{background:var(--glacier)}
+.dot.off{background:var(--amber)}
+.dot.err{background:var(--salmon)}
+.dot.sync{background:var(--amber);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.statusbar button{
+  font-family:var(--display);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--glacier);
+  border:1px solid rgba(127,168,160,.35);
+  padding:4px 11px;border-radius:999px;flex:0 0 auto;
+}
+
+/* ============================================================
+   抽屜表單
+   ============================================================ */
+.scrim{
+  position:fixed;inset:0;z-index:70;background:rgba(22,48,43,.45);
+  opacity:0;visibility:hidden;transition:opacity .28s,visibility .28s;
+}
+.scrim.on{opacity:1;visibility:visible}
+.drawer{
+  position:fixed;left:0;right:0;bottom:0;z-index:71;
+  background:var(--fog2);
+  border-top-left-radius:13px;border-top-right-radius:13px;
+  padding:8px var(--pad) calc(20px + env(safe-area-inset-bottom));
+  max-height:88vh;overflow-y:auto;
+  transform:translateY(101%);transition:transform .32s cubic-bezier(.32,.72,0,1);
+}
+.drawer.on{transform:translateY(0)}
+.grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:6px auto 14px}
+.drawer h3{
+  font-family:var(--display);font-size:17px;letter-spacing:.08em;
+  text-transform:uppercase;margin-bottom:15px;
+}
+.field{margin-bottom:13px}
+.field label{
+  display:block;font-family:var(--display);
+  font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--moss);margin-bottom:5px;
+}
+.field input,.field select,.field textarea{
+  width:100%;padding:9px 11px;
+  border:1px solid var(--line);border-radius:var(--r);
+  background:var(--paper);color:var(--fir);
+}
+.field textarea{min-height:64px;resize:vertical;line-height:1.6}
+.field input:focus,.field select:focus,.field textarea:focus{
+  outline:none;border-color:var(--moss);
+}
+.hint{font-size:11.5px;color:rgba(22,48,43,.52);margin-top:6px;line-height:1.7}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{
+  width:40px;height:40px;border-radius:50%;font-size:20px;line-height:1;
+  background:var(--paper);border:1.5px solid var(--line);
+  transition:transform .15s;
+}
+.chip:hover{transform:scale(1.08)}
+.chip.on{border-color:var(--moss);background:rgba(45,106,79,.1)}
+.swatch{
+  width:32px;height:32px;border-radius:50%;
+  border:2px solid transparent;box-shadow:0 0 0 1px var(--line) inset;
+}
+.swatch.on{border-color:var(--fir)}
+.emoji-own{margin-top:8px;width:72px!important;text-align:center;font-size:21px!important}
+.drawer-acts{display:flex;gap:9px;margin-top:19px}
+.drawer-acts button{
+  flex:1;padding:12px;border-radius:var(--r);
+  font-size:13.5px;letter-spacing:.06em;
+}
+#saveBtn{background:var(--fir);color:var(--fog2)}
+#cancelBtn{background:var(--fog);color:var(--fir)}
+#deleteBtn{flex:0 0 auto;padding:12px 16px;color:var(--salmon);border:1px solid rgba(194,90,71,.3)}
+
+.toast{
+  position:fixed;left:50%;bottom:72px;transform:translateX(-50%) translateY(14px);
+  z-index:90;background:var(--fir);color:var(--amber-lo);
+  padding:10px 18px;border-radius:999px;font-size:12.5px;
+  opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;
+  max-width:88vw;text-align:center;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(min-width:680px){
+  :root{--pad:32px}
+  main{max-width:780px;margin:0 auto}
+  header{padding-left:32px;padding-right:32px}
+  header .bar,header .tabs{max-width:780px;margin-left:auto;margin-right:auto}
+  .sgrid{grid-template-columns:repeat(4,1fr)}
+  .stn{width:62px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     進站畫面
+     ============================================================ -->
+<div id="gate">
+  <svg class="ridge" viewBox="0 0 400 220" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 128 C 42 118 62 96 96 88 C 128 80 148 104 176 96
+             C 208 86 224 54 258 62 C 292 70 310 104 344 100
+             C 372 97 386 110 400 118 L400 220 L0 220 Z"
+          fill="#C9D5D0"/>
+    <path d="M0 156 C 38 150 66 132 104 138 C 140 144 158 166 196 160
+             C 232 154 252 130 288 138 C 322 146 344 164 400 156
+             L400 220 L0 220 Z"
+          fill="#B4C6C0"/>
+    <path d="M0 186 C 48 180 84 190 128 186 C 176 182 202 170 246 176
+             C 296 183 340 192 400 186 L400 220 L0 220 Z"
+          fill="#9FB5AE"/>
+  </svg>
+
+  <div class="gate-inner">
+    <p class="eyebrow">Pacific Northwest</p>
+    <h1 class="gate-title" id="gateTitle">西雅圖 × 波特蘭</h1>
+    <p class="gate-sub" id="gateRange"></p>
+
+    <div class="route">
+      <div class="stop"><b>SEA</b><span id="rSea">—</span></div>
+      <div class="seg"><i>🚆</i></div>
+      <div class="stop"><b>PDX</b><span id="rPdx">—</span></div>
+      <div class="seg"><i>🚆</i></div>
+      <div class="stop"><b>SEA</b><span id="rBack">—</span></div>
+    </div>
+
+    <p class="countdown" id="countdown">&nbsp;</p>
+
+    <p class="who">Who's going?</p>
+    <div class="picker" id="picker"></div>
+
+    <p class="gate-foot">選一個人進入，之後的修改都會記名字<br>
+      <button type="button" id="manageBtn">管理成員</button>　·　<button type="button" id="tripBtn">改行程日期</button>
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================
+     主畫面
+     ============================================================ -->
+<div id="app">
+  <header>
+    <div class="bar">
+      <div class="brand" id="brand">Seattle <em>×</em> Portland</div>
+      <button id="meBtn"><span class="e" id="meEmoji">🙂</span><span id="meName">—</span></button>
+    </div>
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-tab="days">行程</button>
+      <button class="tab" data-tab="stays">住宿<b id="cStays"></b></button>
+      <button class="tab" data-tab="flights">機票<b id="cFlights"></b></button>
+      <button class="tab" data-tab="trains">火車<b id="cTrains"></b></button>
+      <button class="tab" data-tab="todos">待辦<b id="cTodos"></b></button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 每日行程 -->
+    <section id="s-days" class="on">
+      <div class="railwrap"><div class="rail" id="rail"></div></div>
+      <div class="dayhead">
+        <div><h2 id="dayTitle">—</h2><p id="dayMeta">&nbsp;</p></div>
+        <span class="daytag" id="dayTag">—</span>
+      </div>
+      <div class="warn" id="strayWarn" style="display:none"></div>
+      <div id="dayList"></div>
+      <button class="addrow" data-add="days">＋ 加一個行程</button>
+    </section>
+
+    <!-- 住宿 -->
+    <section id="s-stays">
+      <div class="shead"><h2>住宿比價</h2><p>兩個城市分開比，投票選出最想住的</p></div>
+      <div id="stayList"></div>
+      <button class="addrow" data-add="stays">＋ 加一間住宿</button>
+    </section>
+
+    <!-- 機票 -->
+    <section id="s-flights">
+      <div class="shead"><h2>機票比價</h2><p>台北 ⇄ 西雅圖，長程線越早訂越好</p></div>
+      <div class="summary">
+        <h3>Budget · 概估</h3>
+        <div class="sgrid">
+          <div><span>最省機票</span><b id="bAir">—</b></div>
+          <div><span>住宿合計</span><b id="bStay">—</b></div>
+          <div><span>火車來回</span><b id="bTrain">—</b></div>
+          <div><span>距離出發</span><b id="bDays">—</b></div>
+        </div>
+      </div>
+      <div id="flightList"></div>
+      <button class="addrow" data-add="flights">＋ 加一筆機票</button>
+    </section>
+
+    <!-- 火車 -->
+    <section id="s-trains">
+      <div class="shead"><h2>火車票</h2><p>Amtrak Cascades，西雅圖 ⇄ 波特蘭約 3.5～4 小時</p></div>
+      <div id="trainList"></div>
+      <button class="addrow" data-add="trains">＋ 加一筆車票</button>
+    </section>
+
+    <!-- 待辦 -->
+    <section id="s-todos">
+      <div class="shead"><h2>待確認事項</h2><p>出發前要處理完的事</p></div>
+      <div id="todoList"></div>
+      <button class="addrow" data-add="todos">＋ 加一件待辦</button>
+    </section>
+  </main>
+
+  <div class="statusbar">
+    <span id="statusText"><span class="dot off"></span>準備中</span>
+    <button id="syncBtn">重新整理</button>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="drawer" id="drawer" role="dialog" aria-modal="true">
+  <div class="grab"></div>
+  <h3 id="drawerTitle">編輯</h3>
+  <div id="drawerBody"></div>
+  <div class="drawer-acts">
+    <button id="deleteBtn">刪除</button>
+    <button id="cancelBtn">取消</button>
+    <button id="saveBtn">儲存</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   常數
+   ============================================================ */
+var FALLBACK_START = '2026-10-08';
+var FALLBACK_END   = '2026-10-18';
+var FALLBACK_LEGS  = '西雅圖|2026-10-08|2026-10-13,波特蘭|2026-10-14|2026-10-17,西雅圖|2026-10-18|2026-10-18';
+var TRIP_TITLE = '西雅圖 × 波特蘭';
+var TRIP_DAYS = [];
+var LEGS = [];
+
+var WEEK = ['日','一','二','三','四','五','六'];
+var CACHE_KEY = 'sea-pdx-data';
+var ME_KEY = 'sea-pdx-me';
+var QUEUE_KEY = 'sea-pdx-queue';
+
+var DATA = { settings:[], members:[], days:[], stays:[], flights:[], trains:[], todos:[] };
+var ME = null;
+var activeDay = '';
+var activeTab = 'days';
+var editing = null;
+
+/* ============================================================
+   小工具
+   ============================================================ */
+function $(s){ return document.querySelector(s); }
+function esc(v){
+  return String(v == null ? '' : v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function n(v){ var x = parseFloat(String(v).replace(/[^\d.-]/g,'')); return isNaN(x) ? 0 : x; }
+function money(v){ return 'NT$' + Math.round(v).toLocaleString('en-US'); }
+
+/* 把各種可能的日期寫法統一成 YYYY-MM-DD */
+function normDate(v){
+  if (v == null) return '';
+  if (v instanceof Date && !isNaN(v)){
+    return v.getFullYear() + '-' +
+      String(v.getMonth() + 1).padStart(2,'0') + '-' +
+      String(v.getDate()).padStart(2,'0');
+  }
+  var s = String(v).trim();
+  if (!s) return '';
+  var m = s.match(/^(\d{4})[-\/年.](\d{1,2})[-\/月.](\d{1,2})/);
+  if (m) return m[1] + '-' + String(m[2]).padStart(2,'0') + '-' + String(m[3]).padStart(2,'0');
+  var d = new Date(s);
+  if (!isNaN(d)){
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2,'0') + '-' +
+      String(d.getDate()).padStart(2,'0');
+  }
+  return s.slice(0,10);
+}
+function dateLabel(iso){
+  var p = String(iso).split('-');
+  if (p.length < 3) return iso;
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  return (+p[1]) + '/' + (+p[2]) + '（' + WEEK[d.getDay()] + '）';
+}
+function todayIso(){
+  var t = new Date();
+  return t.getFullYear() + '-' +
+    String(t.getMonth() + 1).padStart(2,'0') + '-' +
+    String(t.getDate()).padStart(2,'0');
+}
+
+/* 由起訖日期展開成每一天 */
+function buildTripDays(start, end){
+  var a = normDate(start), b = normDate(end);
+  if (!a || !b) return [];
+  var d0 = new Date(a + 'T00:00:00'), d1 = new Date(b + 'T00:00:00');
+  if (isNaN(d0) || isNaN(d1) || d1 < d0) return [a];
+  var out = [], cur = new Date(d0), guard = 0;
+  while (cur <= d1 && guard++ < 90){
+    out.push(cur.getFullYear() + '-' +
+      String(cur.getMonth() + 1).padStart(2,'0') + '-' +
+      String(cur.getDate()).padStart(2,'0'));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+function conf(key, dflt){
+  var hit = (DATA.settings || []).filter(function(r){ return String(r.key) === key; })[0];
+  return (hit && String(hit.value).trim()) || dflt;
+}
+
+/* 「城市|起|訖,城市|起|訖」解析成分段 */
+function parseLegs(str){
+  return String(str || '').split(',').map(function(chunk){
+    var p = chunk.split('|');
+    if (p.length < 3) return null;
+    return { city: p[0].trim(), from: normDate(p[1]), to: normDate(p[2]) };
+  }).filter(Boolean);
+}
+function cityOf(iso){
+  for (var i = 0; i < LEGS.length; i++){
+    if (iso >= LEGS[i].from && iso <= LEGS[i].to) return LEGS[i].city;
+  }
+  return '';
+}
+/* 這天是不是城市轉換日（要搭車） */
+function isRideDay(iso){
+  var idx = TRIP_DAYS.indexOf(iso);
+  if (idx <= 0) return false;
+  return cityOf(iso) !== cityOf(TRIP_DAYS[idx - 1]);
+}
+function cityClass(city){ return city === '波特蘭' ? 'pdx' : 'sea'; }
+
+function refreshTripDays(){
+  TRIP_DAYS = buildTripDays(conf('startDate', FALLBACK_START), conf('endDate', FALLBACK_END));
+  if (!TRIP_DAYS.length) TRIP_DAYS = buildTripDays(FALLBACK_START, FALLBACK_END);
+  LEGS = parseLegs(conf('legs', FALLBACK_LEGS));
+  TRIP_TITLE = conf('tripTitle', '西雅圖 × 波特蘭');
+  if (TRIP_DAYS.indexOf(activeDay) === -1) activeDay = TRIP_DAYS[0];
+}
+
+function daysToGo(){
+  var t = new Date(); t.setHours(0,0,0,0);
+  if (!TRIP_DAYS.length) return 0;
+  var p = TRIP_DAYS[0].split('-');
+  return Math.round((new Date(+p[0], +p[1] - 1, +p[2]) - t) / 86400000);
+}
+
+var toastTimer;
+function toast(msg){
+  var el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('on'); }, 2600);
+}
+function status(kind, text){
+  $('#statusText').innerHTML = '<span class="dot ' + kind + '"></span>' + esc(text);
+}
+
+/* ============================================================
+   本機快取與離線佇列
+   ============================================================ */
+function saveCache(){
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify(DATA)); }catch(e){}
+}
+function loadCache(){
+  try{
+    var s = localStorage.getItem(CACHE_KEY);
+    if (s){
+      var d = JSON.parse(s);
+      if (d && typeof d === 'object') DATA = d;
+    }
+  }catch(e){}
+}
+function getQueue(){
+  try{ return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }catch(e){ return []; }
+}
+function setQueue(q){
+  try{ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }catch(e){}
+}
+
+/* ============================================================
+   與後端溝通
+   ============================================================ */
+var jsonpSeq = 0;
+function jsonp(url, cb, onErr){
+  var name = '__cb' + (++jsonpSeq) + '_' + Date.now();
+  var s = document.createElement('script');
+  var done = false;
+  var timer = setTimeout(function(){
+    if (!done){ done = true; cleanup(); onErr && onErr('逾時'); }
+  }, 20000);
+  function cleanup(){
+    clearTimeout(timer);
+    try{ delete window[name]; }catch(e){ window[name] = undefined; }
+    if (s.parentNode) s.parentNode.removeChild(s);
+  }
+  window[name] = function(res){ done = true; cleanup(); cb(res); };
+  s.onerror = function(){ if (!done){ done = true; cleanup(); onErr && onErr('連線失敗'); } };
+  s.src = url + (url.indexOf('?') > -1 ? '&' : '?') + 'callback=' + name + '&_=' + Date.now();
+  document.head.appendChild(s);
+}
+
+function pull(silent){
+  if (!API_URL){
+    status('off', '離線模式（尚未設定 API_URL）');
+    return;
+  }
+  if (!silent) status('sync', '同步中…');
+  jsonp(API_URL + '?action=all', function(res){
+    if (res && res.ok && res.data){
+      DATA = res.data;
+      saveCache();
+      renderAll();
+      status('ok', '已同步 ' + new Date().toTimeString().slice(0,5));
+      flushQueue();
+    } else {
+      status('err', '伺服器回應異常');
+    }
+  }, function(){
+    status('off', '離線 — 顯示上次快取');
+  });
+}
+
+var pending = 0;
+function push(payload, done){
+  var q = getQueue();
+  if (!API_URL){
+    q.push(payload); setQueue(q);
+    status('off', '已存本機，連上網再送出');
+    done && done(false);
+    return;
+  }
+
+  payload.light = true;   // 畫面已更新，不需要伺服器再回傳整份資料
+  pending++;
+  status('sync', '儲存中…');
+
+  fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  }).then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res && res.ok){
+        pending--;
+        if (pending <= 0){
+          pending = 0;
+          status('ok', '已儲存 ' + new Date().toTimeString().slice(0,5));
+        }
+        done && done(true);
+      } else {
+        throw new Error(res && res.error ? res.error : '未知錯誤');
+      }
+    })
+    .catch(function(){
+      pending--;
+      if (pending < 0) pending = 0;
+      var qq = getQueue(); qq.push(payload); setQueue(qq);
+      status('off', '離線 — 已排隊 ' + qq.length + ' 筆待送出');
+      done && done(false);
+    });
+}
+
+function flushQueue(){
+  var q = getQueue();
+  if (!q.length || !API_URL) return;
+  setQueue([]);
+  var i = 0;
+  (function next(){
+    if (i >= q.length){ toast('待送出的修改已補上'); return; }
+    var item = q[i++];
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(item)
+    }).then(function(r){ return r.json(); })
+      .then(function(res){
+        if (res && res.ok && res.data){ DATA = res.data; saveCache(); renderAll(); }
+        next();
+      })
+      .catch(function(){
+        setQueue(getQueue().concat(q.slice(i - 1)));
+      });
+  })();
+}
+
+/* 本機先套用，畫面立刻反應，再送出 */
+function saveRow(sheet, row){
+  if (!row.id) row.id = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2,7);
+  if (sheet === 'days' && row.date) row.date = normDate(row.date);
+  row.updatedBy = ME ? ME.name : '';
+  row.updatedAt = new Date().toISOString().slice(0,19);
+  var list = DATA[sheet] || (DATA[sheet] = []);
+  var hit = false;
+  for (var i = 0; i < list.length; i++){
+    if (list[i].id === row.id){ list[i] = row; hit = true; break; }
+  }
+  if (!hit) list.push(row);
+  saveCache();
+  renderSheet(sheet);
+  push({ action:'save', sheet:sheet, rows:[row], actor: ME ? ME.name : '' });
+}
+
+function deleteRow(sheet, id){
+  DATA[sheet] = (DATA[sheet] || []).filter(function(r){ return r.id !== id; });
+  saveCache();
+  renderSheet(sheet);
+  push({ action:'delete', sheet:sheet, ids:[id] });
+}
+
+/* ============================================================
+   繪製
+   ============================================================ */
+function renderAll(){
+  refreshTripDays();
+  renderHeadline();
+  renderPicker();
+  renderDays();
+  renderStays();
+  renderFlights();
+  renderTrains();
+  renderTodos();
+  renderCounts();
+}
+
+/* 只重畫被改動的那一區，畫面反應才會即時 */
+function renderSheet(sheet){
+  if (sheet === 'settings'){ renderAll(); return; }
+  if (sheet === 'days')    renderDays();
+  if (sheet === 'stays')   renderStays();
+  if (sheet === 'flights') renderFlights();
+  if (sheet === 'trains')  renderTrains();
+  if (sheet === 'todos')   renderTodos();
+  if (sheet === 'members') renderPicker();
+  renderCounts();
+}
+
+function renderCounts(){
+  renderBudget();
+  $('#cStays').textContent = (DATA.stays || []).length || '';
+  $('#cFlights').textContent = (DATA.flights || []).length || '';
+  $('#cTrains').textContent = (DATA.trains || []).length || '';
+  var open = (DATA.todos || []).filter(function(t){ return String(t.status || '') !== '已確認'; }).length;
+  $('#cTodos').textContent = open || '';
+}
+
+function renderHeadline(){
+  var a = TRIP_DAYS[0].split('-'), b = TRIP_DAYS[TRIP_DAYS.length - 1].split('-');
+  $('#gateRange').textContent = a[0] + ' · ' + (+a[1]) + '/' + (+a[2]) + ' — ' + (+b[1]) + '/' + (+b[2]);
+  $('#gateTitle').textContent = TRIP_TITLE;
+  $('#brand').textContent = TRIP_TITLE;
+  document.title = TRIP_TITLE;
+
+  // 路線圖上的天數
+  var cnt = {};
+  TRIP_DAYS.forEach(function(d){
+    var c = cityOf(d) || '—';
+    cnt[c] = (cnt[c] || 0) + 1;
+  });
+  var first = LEGS[0], mid = LEGS[1], last = LEGS[2];
+  $('#rSea').textContent = first ? nightsOf(first) + ' 晚' : '—';
+  $('#rPdx').textContent = mid ? nightsOf(mid) + ' 晚' : '—';
+  $('#rBack').textContent = last ? nightsOf(last) + ' 晚' : '—';
+
+  var d = daysToGo();
+  $('#countdown').innerHTML = d > 0
+    ? '距離出發還有 <b>' + d + '</b> 天'
+    : (d === 0 ? '<b>今天出發</b>' : '旅程已結束');
+}
+function nightsOf(leg){
+  return buildTripDays(leg.from, leg.to).length;
+}
+
+function renderPicker(){
+  var wrap = $('#picker');
+  var list = DATA.members || [];
+  wrap.innerHTML = list.map(function(m){
+    return '<button class="person" data-id="' + esc(m.id) + '">' +
+      '<span class="avatar" style="box-shadow:0 0 0 2px ' + esc(m.color || '#2D6A4F') + ' inset">' +
+      esc(m.emoji || '🙂') + '</span>' +
+      '<span>' + esc(m.name) + '</span></button>';
+  }).join('') +
+  '<button class="person" data-addmember="1">' +
+    '<span class="avatar add">＋</span><span>新增成員</span></button>';
+}
+
+/* 鐵道線：每一天一個站點，城市換了顏色就換 */
+function renderRail(){
+  var today = todayIso();
+  $('#rail').innerHTML = TRIP_DAYS.map(function(d){
+    var city = cityOf(d);
+    var cls = ['stn', cityClass(city)];
+    if (d === activeDay) cls.push('on');
+    if (isRideDay(d)) cls.push('ride');
+    if (d === today) cls.push('today');
+    var p = d.split('-');
+    var wd = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
+    return '<button class="' + cls.join(' ') + '" data-day="' + esc(d) + '"' +
+      ' aria-label="' + esc(dateLabel(d)) + '">' +
+      '<i></i><u>' + (+p[2]) + '</u><s>' + WEEK[wd] + '</s></button>';
+  }).join('');
+  // 讓選到的那天捲進畫面
+  var on = $('#rail .stn.on');
+  if (on && on.scrollIntoView) on.scrollIntoView({ block:'nearest', inline:'center' });
+}
+
+function renderDays(){
+  renderRail();
+  var city = cityOf(activeDay);
+  var idx = TRIP_DAYS.indexOf(activeDay);
+  $('#dayTitle').textContent = 'Day ' + (idx + 1) + ' · ' + dateLabel(activeDay);
+  var tag = $('#dayTag');
+  tag.textContent = city || '—';
+  tag.className = 'daytag ' + cityClass(city);
+
+  var rows = (DATA.days || [])
+    .filter(function(r){ return normDate(r.date) === activeDay; })
+    .sort(function(a,b){ return n(a.sort) - n(b.sort); });
+
+  var strays = (DATA.days || []).filter(function(r){
+    return TRIP_DAYS.indexOf(normDate(r.date)) === -1;
+  });
+
+  var doneCount = rows.filter(function(r){ return String(r.done) === 'true' || r.done === true; }).length;
+  $('#dayMeta').textContent = rows.length
+    ? (rows.length + ' 個行程・已完成 ' + doneCount + (isRideDay(activeDay) ? '・今天搭車移動' : ''))
+    : '這天還沒排';
+
+  var warn = $('#strayWarn');
+  if (strays.length){
+    var ds = strays.map(function(r){ return normDate(r.date) || '(空白)'; })
+      .filter(function(v,i,a){ return a.indexOf(v) === i; });
+    warn.innerHTML = '有 <b>' + strays.length + '</b> 筆行程的日期不在這趟裡（' +
+      esc(ds.join('、')) + '），所以看不到。' +
+      '<button type="button" id="fixStray">全部搬到 ' + esc(dateLabel(activeDay)) + '</button>';
+    warn.style.display = '';
+  } else {
+    warn.style.display = 'none';
+  }
+
+  $('#dayList').innerHTML = rows.length ? rows.map(function(r){
+    var done = String(r.done) === 'true' || r.done === true;
+    return '<article class="card ' + cityClass(city) + (done ? ' done' : '') + '">' +
+      '<div class="c-top">' +
+        '<div class="c-time">' + esc(r.time || '') + '</div>' +
+        '<div class="c-body">' +
+          '<p class="c-title">' + esc(r.title) + '</p>' +
+          (r.place || r.mapUrl
+            ? '<p class="c-place">' + (r.place ? '📍 ' + esc(r.place) : '') +
+              (r.mapUrl ? '<a class="maplink" href="' + esc(r.mapUrl) + '" target="_blank" rel="noopener">開地圖 ↗</a>' : '') +
+              '</p>' : '') +
+          (r.note ? '<p class="c-note">' + esc(r.note) + '</p>' : '') +
+          (r.updatedBy ? '<p class="stamp">' + esc(r.updatedBy) + ' 於 ' +
+            esc(String(r.updatedAt).replace('T',' ').slice(0,16)) + '</p>' : '') +
+        '</div>' +
+        '<div class="c-acts">' +
+          '<button class="ibtn tick" data-tick="' + esc(r.id) + '" aria-label="完成">' +
+            (done ? '☑' : '☐') + '</button>' +
+          '<button class="ibtn" data-edit="days" data-id="' + esc(r.id) + '" aria-label="編輯">✎</button>' +
+        '</div>' +
+      '</div></article>';
+  }).join('') : '<p class="empty">這天還沒有安排，按下面加一個。</p>';
+}
+
+function renderStays(){
+  var rows = (DATA.stays || []).slice().sort(function(a,b){ return n(a.sort) - n(b.sort); });
+  var cities = [];
+  rows.forEach(function(r){
+    var c = String(r.city || '其他').trim() || '其他';
+    if (cities.indexOf(c) === -1) cities.push(c);
+  });
+  if (!rows.length){
+    $('#stayList').innerHTML = '<p class="empty">還沒有住宿資料。</p>';
+    return;
+  }
+  $('#stayList').innerHTML = cities.map(function(c){
+    var sub = rows.filter(function(r){ return (String(r.city || '其他').trim() || '其他') === c; });
+    var prices = sub.map(function(r){ return n(r.price); }).filter(function(v){ return v > 0; });
+    var lo = prices.length ? money(Math.min.apply(null, prices)) : '待填價格';
+    return '<div class="citybar"><b>' + esc(c) + '</b><span></span><em>最低 ' + lo + '</em></div>' +
+      sub.map(stayCard).join('');
+  }).join('');
+}
+
+function stayCard(r){
+  var voters = String(r.votes || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+  var mine = ME && voters.indexOf(ME.name) > -1;
+  var price = n(r.price), nights = n(r.nights);
+  return '<article class="pcard">' +
+    '<div class="p-top">' +
+      '<div><p class="p-name">' + esc(r.name) + '</p>' +
+        '<p class="p-sub">' + esc(r.area || '') + (nights ? '　·　' + nights + ' 晚' : '') + '</p></div>' +
+      '<div class="p-price">' + (price ? money(price) : '—') +
+        (price && nights ? '<small>每晚 ' + money(price / nights) + '</small>' : '<small>待填</small>') +
+      '</div>' +
+    '</div>' +
+    (r.transport || r.pros || r.cons ? '<div class="p-meta">' +
+      (r.transport ? '<span class="chipx">🚉 ' + esc(r.transport) + '</span>' : '') +
+      (r.pros ? '<span class="chipx good">＋ ' + esc(r.pros) + '</span>' : '') +
+      (r.cons ? '<span class="chipx bad">− ' + esc(r.cons) + '</span>' : '') +
+    '</div>' : '') +
+    '<div class="p-foot">' +
+      '<span class="votes">' + (voters.length ? '👍 ' + esc(voters.join('、')) : '還沒人投票') + '</span>' +
+      '<span style="display:flex;gap:8px;align-items:center">' +
+        (r.link ? '<a class="plink" href="' + esc(r.link) + '" target="_blank" rel="noopener">看房 ↗</a>' : '') +
+        '<button class="vbtn' + (mine ? ' on' : '') + '" data-vote="' + esc(r.id) + '">' +
+          (mine ? '已投' : '投一票') + '</button>' +
+        '<button class="ibtn" data-edit="stays" data-id="' + esc(r.id) + '" aria-label="編輯">✎</button>' +
+      '</span>' +
+    '</div></article>';
+}
+
+function renderFlights(){
+  var rows = (DATA.flights || []).slice().sort(function(a,b){ return n(a.sort) - n(b.sort); });
+  $('#flightList').innerHTML = rows.length ? rows.map(function(r){
+    var price = n(r.price);
+    return '<article class="pcard">' +
+      '<div class="p-top">' +
+        '<div><p class="p-name">' + esc(r.route) + '</p>' +
+          '<p class="p-sub">' + esc(r.airline || '待查') + '</p></div>' +
+        '<div class="p-price">' + (price ? money(price) : '—') +
+          '<small>' + esc(r.type || '') + '</small></div>' +
+      '</div>' +
+      ((r.stops || r.duration || r.note) ? '<div class="p-meta">' +
+        (r.stops ? '<span class="chipx">' + esc(r.stops) + '</span>' : '') +
+        (r.duration ? '<span class="chipx">⏱ ' + esc(r.duration) + '</span>' : '') +
+        (r.note ? '<span class="chipx">' + esc(r.note) + '</span>' : '') +
+      '</div>' : '') +
+      '<div class="p-foot">' +
+        '<span class="votes">' + (r.updatedBy ? esc(r.updatedBy) + ' 更新' : '&nbsp;') + '</span>' +
+        '<span style="display:flex;gap:8px;align-items:center">' +
+          (r.link ? '<a class="plink" href="' + esc(r.link) + '" target="_blank" rel="noopener">訂票 ↗</a>' : '') +
+          '<button class="ibtn" data-edit="flights" data-id="' + esc(r.id) + '" aria-label="編輯">✎</button>' +
+        '</span>' +
+      '</div></article>';
+  }).join('') : '<p class="empty">還沒有機票資料。</p>';
+}
+
+function renderTrains(){
+  var rows = (DATA.trains || []).slice().sort(function(a,b){ return n(a.sort) - n(b.sort); });
+  $('#trainList').innerHTML = rows.length ? rows.map(function(r){
+    var price = n(r.price);
+    return '<article class="pcard">' +
+      '<div class="p-top">' +
+        '<div><p class="p-name">' + esc(r.route) + '</p>' +
+          '<p class="p-sub">' + esc(r.service || '') + '</p></div>' +
+        '<div class="p-price">' + (price ? money(price) : '—') +
+          '<small>' + esc(r.seat || '單程') + '</small></div>' +
+      '</div>' +
+      ((r.depart || r.arrive || r.note) ? '<div class="p-meta">' +
+        (r.depart ? '<span class="chipx">發 ' + esc(r.depart) + '</span>' : '') +
+        (r.arrive ? '<span class="chipx">到 ' + esc(r.arrive) + '</span>' : '') +
+        (r.note ? '<span class="chipx">' + esc(r.note) + '</span>' : '') +
+      '</div>' : '') +
+      '<div class="p-foot">' +
+        '<span class="votes">' + (r.updatedBy ? esc(r.updatedBy) + ' 更新' : '&nbsp;') + '</span>' +
+        '<span style="display:flex;gap:8px;align-items:center">' +
+          (r.link ? '<a class="plink" href="' + esc(r.link) + '" target="_blank" rel="noopener">訂票 ↗</a>' : '') +
+          '<button class="ibtn" data-edit="trains" data-id="' + esc(r.id) + '" aria-label="編輯">✎</button>' +
+        '</span>' +
+      '</div></article>';
+  }).join('') : '<p class="empty">還沒有火車票資料。</p>';
+}
+
+function renderTodos(){
+  var rows = (DATA.todos || []).slice().sort(function(a,b){ return n(a.sort) - n(b.sort); });
+  $('#todoList').innerHTML = rows.length ? rows.map(function(t){
+    var ok = String(t.status) === '已確認';
+    return '<div class="todo' + (ok ? ' ok' : '') + '">' +
+      '<button class="tbox" data-todo="' + esc(t.id) + '" aria-label="切換狀態">✓</button>' +
+      '<div style="flex:1;min-width:0">' +
+        '<p class="t-title">' + esc(t.title) + '</p>' +
+        (t.detail ? '<p class="t-detail">' + esc(t.detail) + '</p>' : '') +
+        (t.owner ? '<span class="t-owner">負責：' + esc(t.owner) + '</span>' : '') +
+      '</div>' +
+      '<button class="ibtn" data-edit="todos" data-id="' + esc(t.id) + '" aria-label="編輯">✎</button>' +
+    '</div>';
+  }).join('') : '<p class="empty">沒有待辦事項。</p>';
+}
+
+function renderBudget(){
+  var air = (DATA.flights || [])
+    .filter(function(f){ return n(f.price) > 0; })
+    .map(function(f){ return n(f.price); });
+  var minAir = air.length ? Math.min.apply(null, air) : 0;
+
+  // 住宿：每個城市取最低價相加
+  var byCity = {};
+  (DATA.stays || []).forEach(function(s){
+    var p = n(s.price);
+    if (p <= 0) return;
+    var c = String(s.city || '其他').trim();
+    if (!byCity[c] || p < byCity[c]) byCity[c] = p;
+  });
+  var stayTotal = 0;
+  Object.keys(byCity).forEach(function(c){ stayTotal += byCity[c]; });
+
+  var tr = (DATA.trains || []).filter(function(t){ return n(t.price) > 0; })
+    .map(function(t){ return n(t.price); });
+  var trainSum = tr.length ? tr.slice(0,2).reduce(function(a,b){ return a + b; }, 0) : 0;
+
+  $('#bAir').textContent = minAir ? money(minAir) : '—';
+  $('#bStay').textContent = stayTotal ? money(stayTotal) : '—';
+  $('#bTrain').textContent = trainSum ? money(trainSum) : '—';
+  $('#bDays').textContent = daysToGo() + ' 天';
+}
+
+/* ============================================================
+   表單
+   ============================================================ */
+var FORMS = {
+  days: [
+    ['date','日期','select', function(){ return TRIP_DAYS; }],
+    ['time','時間','text'],
+    ['title','標題','text'],
+    ['place','地點','text'],
+    ['mapUrl','地圖連結','url'],
+    ['note','備註','textarea']
+  ],
+  stays: [
+    ['city','城市','select', function(){ return cityOptions(); }],
+    ['name','住宿名稱','text'],
+    ['area','區域','text'],
+    ['price','總價 NT$','number'],
+    ['nights','晚數','number'],
+    ['transport','交通','text'],
+    ['pros','優點','text'],
+    ['cons','缺點','text'],
+    ['link','訂房連結','url']
+  ],
+  flights: [
+    ['route','航線','text'],
+    ['airline','航空公司','text'],
+    ['price','價格 NT$','number'],
+    ['type','類型','select', function(){ return ['來回','單程','直飛','機+酒']; }],
+    ['stops','轉機','text'],
+    ['duration','飛行時間','text'],
+    ['note','備註','textarea'],
+    ['link','訂票連結','url']
+  ],
+  trains: [
+    ['route','區間','text'],
+    ['service','車種','text'],
+    ['depart','出發時間','text'],
+    ['arrive','抵達時間','text'],
+    ['price','票價 NT$','number'],
+    ['seat','座位','text'],
+    ['note','備註','textarea'],
+    ['link','訂票連結','url']
+  ],
+  todos: [
+    ['title','事項','text'],
+    ['detail','細節','textarea'],
+    ['owner','負責人','text'],
+    ['status','狀態','select', function(){ return ['待確認','已確認']; }]
+  ]
+};
+var SHEET_NAME = { days:'行程', stays:'住宿', flights:'機票', trains:'車票', todos:'待辦', members:'成員' };
+
+function cityOptions(){
+  var out = [];
+  LEGS.forEach(function(l){ if (out.indexOf(l.city) === -1) out.push(l.city); });
+  (DATA.stays || []).forEach(function(s){
+    var c = String(s.city || '').trim();
+    if (c && out.indexOf(c) === -1) out.push(c);
+  });
+  if (!out.length) out = ['西雅圖','波特蘭'];
+  return out;
+}
+
+function openDrawer(sheet, id){
+  var row = id ? (DATA[sheet] || []).filter(function(r){ return r.id === id; })[0] : null;
+  var isNew = !row;
+  if (!row){
+    row = {};
+    if (sheet === 'days'){ row.date = activeDay; }
+    if (sheet === 'stays'){ row.city = cityOf(activeDay) || cityOptions()[0]; row.nights = 1; }
+    if (sheet === 'todos') row.status = '待確認';
+    row.sort = ((DATA[sheet] || []).length + 1) * 10;
+  }
+  editing = { sheet:sheet, row:JSON.parse(JSON.stringify(row)), isNew:isNew };
+
+  $('#drawerTitle').textContent = (isNew ? '新增' : '編輯') + SHEET_NAME[sheet];
+  $('#deleteBtn').style.display = isNew ? 'none' : '';
+
+  $('#drawerBody').innerHTML = FORMS[sheet].map(function(f){
+    var key = f[0], label = f[1], type = f[2], opts = f[3];
+    var v = row[key] == null ? '' : row[key];
+    var ctl;
+    if (type === 'textarea'){
+      ctl = '<textarea data-k="' + key + '">' + esc(v) + '</textarea>';
+    } else if (type === 'select'){
+      var list = typeof opts === 'function' ? opts() : opts;
+      var cur = (key === 'date') ? normDate(v) : String(v);
+      ctl = '<select data-k="' + key + '">' + list.map(function(o){
+        var lbl = (key === 'date') ? dateLabel(o) : o;
+        return '<option value="' + esc(o) + '"' + (cur === String(o) ? ' selected' : '') + '>' +
+          esc(lbl) + '</option>';
+      }).join('') + '</select>';
+    } else {
+      ctl = '<input type="' + type + '" data-k="' + key + '" value="' + esc(v) + '">';
+    }
+    return '<div class="field"><label>' + esc(label) + '</label>' + ctl + '</div>';
+  }).join('');
+
+  $('#scrim').classList.add('on');
+  $('#drawer').classList.add('on');
+}
+
+/* 行程設定：改標題、起訖日期、兩個城市各住幾天 */
+function openTripDialog(){
+  var start = conf('startDate', FALLBACK_START);
+  var end   = conf('endDate',   FALLBACK_END);
+  var legs  = parseLegs(conf('legs', FALLBACK_LEGS));
+  editing = { sheet:'settings', row:{}, isNew:false, isTrip:true };
+
+  $('#drawerTitle').textContent = '行程設定';
+  $('#deleteBtn').style.display = 'none';
+  $('#drawerBody').innerHTML =
+    '<div class="field"><label>行程名稱</label>' +
+      '<input type="text" id="tTitle" value="' + esc(TRIP_TITLE) + '" maxlength="16"></div>' +
+    '<div class="field"><label>出發日</label>' +
+      '<input type="date" id="tStart" value="' + esc(start) + '"></div>' +
+    '<div class="field"><label>回程日</label>' +
+      '<input type="date" id="tEnd" value="' + esc(end) + '"></div>' +
+    '<p class="hint" id="tPreview"></p>' +
+    '<div class="field" style="margin-top:16px"><label>城市分段</label>' +
+      '<textarea id="tLegs" style="min-height:78px;font-size:13px">' +
+        esc(legs.map(function(l){ return l.city + '|' + l.from + '|' + l.to; }).join('\n')) +
+      '</textarea>' +
+      '<span class="hint">一行一段，格式是<b>城市|起日|訖日</b>。<br>' +
+        '例如：西雅圖|2026-10-08|2026-10-13<br>' +
+        '行程頁的鐵道線會依照這個換色，切換城市那天會標成搭車日。</span>' +
+    '</div>';
+
+  function preview(){
+    var days = buildTripDays($('#tStart').value, $('#tEnd').value);
+    $('#tPreview').innerHTML = days.length
+      ? '共 <b>' + days.length + '</b> 天：' + esc(dateLabel(days[0])) +
+        ' ～ ' + esc(dateLabel(days[days.length - 1]))
+      : '<span style="color:var(--salmon)">日期不正確，回程日不能早於出發日</span>';
+  }
+  $('#tStart').addEventListener('change', preview);
+  $('#tEnd').addEventListener('change', preview);
+  preview();
+
+  $('#scrim').classList.add('on');
+  $('#drawer').classList.add('on');
+}
+
+/* 準備一列「設定」資料 */
+function confRow(key, value){
+  var list = DATA.settings || (DATA.settings = []);
+  var hit = list.filter(function(r){ return String(r.key) === key; })[0];
+  if (!hit){
+    hit = { id:'local-' + Date.now() + '-' + Math.random().toString(36).slice(2,7), key:key };
+    list.push(hit);
+  }
+  hit.value = value;
+  hit.updatedBy = ME ? ME.name : '';
+  hit.updatedAt = new Date().toISOString().slice(0,19);
+  return hit;
+}
+
+/* 成員 */
+var EMOJI_POOL = ['🌲','☕','🚆','🏔','🐟','🌧','📚','🦀','🍁','🐻','⛰','🥾'];
+var COLOR_POOL = ['#2D6A4F','#B5651D','#7FA8A0','#C25A47','#D89B3C','#4A6FA5','#8E6C88','#5C7A3E'];
+
+function openMemberDialog(id){
+  var row = id ? (DATA.members || []).filter(function(r){ return r.id === id; })[0] : null;
+  var isNew = !row;
+  if (!row){
+    var used = (DATA.members || []).length;
+    row = { name:'', emoji:EMOJI_POOL[used % EMOJI_POOL.length], color:COLOR_POOL[used % COLOR_POOL.length] };
+  }
+  editing = { sheet:'members', row:JSON.parse(JSON.stringify(row)), isNew:isNew };
+
+  $('#drawerTitle').textContent = (isNew ? '新增' : '編輯') + '成員';
+  $('#deleteBtn').style.display = isNew ? 'none' : '';
+
+  $('#drawerBody').innerHTML =
+    '<div class="field"><label>名字</label>' +
+      '<input type="text" data-k="name" value="' + esc(row.name) + '" maxlength="6" placeholder="例如：小美"></div>' +
+    '<div class="field"><label>頭像</label><div class="chips" id="emojiPick">' +
+      EMOJI_POOL.map(function(e){
+        return '<button type="button" class="chip' + (e === row.emoji ? ' on' : '') +
+               '" data-emoji="' + e + '">' + e + '</button>';
+      }).join('') +
+    '</div><input class="emoji-own" type="text" data-k="emoji" value="' + esc(row.emoji) +
+      '" maxlength="4" aria-label="自訂頭像">' +
+      '<span class="hint">上面挑一個，或直接在這格貼上你想要的表情符號</span></div>' +
+    '<div class="field"><label>顏色</label><div class="chips" id="colorPick">' +
+      COLOR_POOL.map(function(c){
+        return '<button type="button" class="swatch' + (c === row.color ? ' on' : '') +
+               '" data-color="' + c + '" style="background:' + c + '" aria-label="' + c + '"></button>';
+      }).join('') +
+    '</div><input type="hidden" data-k="color" value="' + esc(row.color) + '"></div>';
+
+  var emojiInput = $('#drawerBody').querySelector('[data-k="emoji"]');
+  $('#emojiPick').addEventListener('click', function(e){
+    var b = e.target.closest('[data-emoji]');
+    if (!b) return;
+    Array.prototype.forEach.call(this.children, function(x){ x.classList.remove('on'); });
+    b.classList.add('on');
+    emojiInput.value = b.dataset.emoji;
+  });
+  emojiInput.addEventListener('input', function(){
+    var v = this.value;
+    Array.prototype.forEach.call($('#emojiPick').children, function(x){
+      x.classList.toggle('on', x.dataset.emoji === v);
+    });
+  });
+  $('#colorPick').addEventListener('click', function(e){
+    var b = e.target.closest('[data-color]');
+    if (!b) return;
+    Array.prototype.forEach.call(this.children, function(x){ x.classList.remove('on'); });
+    b.classList.add('on');
+    $('#drawerBody').querySelector('[data-k="color"]').value = b.dataset.color;
+  });
+
+  $('#scrim').classList.add('on');
+  $('#drawer').classList.add('on');
+}
+
+function closeDrawer(){
+  $('#scrim').classList.remove('on');
+  $('#drawer').classList.remove('on');
+  editing = null;
+}
+
+/* ============================================================
+   事件
+   ============================================================ */
+var manageMode = false;
+$('#manageBtn').addEventListener('click', function(){
+  manageMode = !manageMode;
+  $('#picker').classList.toggle('manage', manageMode);
+  this.textContent = manageMode ? '完成' : '管理成員';
+});
+$('#tripBtn').addEventListener('click', openTripDialog);
+
+$('#picker').addEventListener('click', function(e){
+  if (e.target.closest('[data-addmember]')){ openMemberDialog(null); return; }
+  var btn = e.target.closest('[data-id]');
+  if (!btn) return;
+  var m = (DATA.members || []).filter(function(x){ return x.id === btn.dataset.id; })[0];
+  if (!m) return;
+  if (manageMode){ openMemberDialog(m.id); return; }
+  setMe(m);
+});
+
+function setMe(m){
+  ME = m;
+  try{ localStorage.setItem(ME_KEY, m.id); }catch(e){}
+  $('#meEmoji').textContent = m.emoji || '🙂';
+  $('#meName').textContent = m.name;
+  $('#gate').classList.add('hide');
+  $('#app').classList.add('on');
+  renderAll();
+}
+
+$('#meBtn').addEventListener('click', function(){
+  try{ localStorage.removeItem(ME_KEY); }catch(e){}
+  ME = null;
+  $('#app').classList.remove('on');
+  $('#gate').classList.remove('hide');
+});
+
+$('#tabs').addEventListener('click', function(e){
+  var t = e.target.closest('.tab');
+  if (!t) return;
+  activeTab = t.dataset.tab;
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){
+    x.classList.toggle('on', x === t);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('main section'), function(s){
+    s.classList.toggle('on', s.id === 's-' + activeTab);
+  });
+  window.scrollTo({ top:0, behavior:'smooth' });
+});
+
+$('#rail').addEventListener('click', function(e){
+  var s = e.target.closest('[data-day]');
+  if (!s) return;
+  activeDay = s.dataset.day;
+  renderDays();
+});
+
+document.addEventListener('click', function(e){
+  if (e.target.id === 'fixStray'){
+    var strays = (DATA.days || []).filter(function(r){
+      return TRIP_DAYS.indexOf(normDate(r.date)) === -1;
+    });
+    if (!strays.length) return;
+    if (!confirm('把這 ' + strays.length + ' 筆行程的日期改成 ' + dateLabel(activeDay) + '？')) return;
+    var stamp = new Date().toISOString().slice(0,19);
+    strays.forEach(function(r){
+      r.date = activeDay;
+      r.updatedBy = ME ? ME.name : '';
+      r.updatedAt = stamp;
+    });
+    saveCache();
+    renderSheet('days');
+    push({ action:'save', sheet:'days', rows:strays, actor: ME ? ME.name : '' });
+    toast('已搬到 ' + dateLabel(activeDay));
+    return;
+  }
+
+  var add = e.target.closest('[data-add]');
+  if (add){ openDrawer(add.dataset.add, null); return; }
+
+  var ed = e.target.closest('[data-edit]');
+  if (ed){ openDrawer(ed.dataset.edit, ed.dataset.id); return; }
+
+  var tick = e.target.closest('[data-tick]');
+  if (tick){
+    var r = (DATA.days || []).filter(function(x){ return x.id === tick.dataset.tick; })[0];
+    if (r){
+      var was = String(r.done) === 'true' || r.done === true;
+      r.done = was ? '' : 'true';
+      saveRow('days', r);
+    }
+    return;
+  }
+
+  var td = e.target.closest('[data-todo]');
+  if (td){
+    var t = (DATA.todos || []).filter(function(x){ return x.id === td.dataset.todo; })[0];
+    if (t){
+      t.status = (String(t.status) === '已確認') ? '待確認' : '已確認';
+      saveRow('todos', t);
+    }
+    return;
+  }
+
+  var vt = e.target.closest('[data-vote]');
+  if (vt){
+    if (!ME){ toast('請先選擇你是誰'); return; }
+    var h = (DATA.stays || []).filter(function(x){ return x.id === vt.dataset.vote; })[0];
+    if (h){
+      var voters = String(h.votes || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+      var i = voters.indexOf(ME.name);
+      if (i > -1) voters.splice(i,1); else voters.push(ME.name);
+      h.votes = voters.join(',');
+      saveRow('stays', h);
+    }
+    return;
+  }
+});
+
+$('#saveBtn').addEventListener('click', function(){
+  if (!editing) return;
+
+  if (editing.isTrip){
+    var s = normDate($('#tStart').value), e2 = normDate($('#tEnd').value);
+    var days = buildTripDays(s, e2);
+    if (!days.length){ toast('日期不正確'); return; }
+    if (days.length > 90){ toast('最多 90 天'); return; }
+    var t = String($('#tTitle').value || '').trim() || '我的行程';
+    var legsRaw = String($('#tLegs').value || '').split('\n')
+      .map(function(x){ return x.trim(); }).filter(Boolean).join(',');
+    var rows = [
+      confRow('startDate', s),
+      confRow('endDate', e2),
+      confRow('tripTitle', t),
+      confRow('legs', legsRaw || FALLBACK_LEGS)
+    ];
+    saveCache();
+    renderAll();
+    push({ action:'save', sheet:'settings', rows:rows, actor: ME ? ME.name : '' });
+    closeDrawer();
+    toast('行程改成 ' + days.length + ' 天');
+    return;
+  }
+
+  var row = editing.row;
+  Array.prototype.forEach.call($('#drawerBody').querySelectorAll('[data-k]'), function(el){
+    row[el.dataset.k] = el.value;
+  });
+  if (!String(row.title || row.name || row.route || '').trim()){
+    toast(editing.sheet === 'members' ? '請先填名字' : '至少要填一個名稱');
+    return;
+  }
+  var wasNewMember = (editing.sheet === 'members') && editing.isNew;
+  saveRow(editing.sheet, row);
+  closeDrawer();
+  toast('已儲存');
+  if (wasNewMember && !ME) setMe(row);
+});
+
+$('#cancelBtn').addEventListener('click', closeDrawer);
+$('#scrim').addEventListener('click', closeDrawer);
+$('#deleteBtn').addEventListener('click', function(){
+  if (!editing || editing.isNew) return;
+  if (editing.sheet === 'members'){
+    if ((DATA.members || []).length <= 1){ toast('至少要留一個成員'); return; }
+    if (!confirm('確定要刪除「' + editing.row.name + '」？\n他之前改過的紀錄會保留。')) return;
+    if (ME && ME.id === editing.row.id){
+      try{ localStorage.removeItem(ME_KEY); }catch(e){}
+      ME = null;
+    }
+  } else if (!confirm('確定要刪除？')) return;
+  deleteRow(editing.sheet, editing.row.id);
+  closeDrawer();
+  toast('已刪除');
+});
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && editing) closeDrawer();
+});
+
+$('#syncBtn').addEventListener('click', function(){ pull(false); });
+window.addEventListener('online', function(){ pull(true); });
+window.addEventListener('offline', function(){ status('off','離線 — 顯示上次快取'); });
+
+/* ============================================================
+   啟動
+   ============================================================ */
+(function init(){
+  loadCache();
+  refreshTripDays();
+
+  var iso = todayIso();
+  if (TRIP_DAYS.indexOf(iso) > -1) activeDay = iso;
+
+  renderAll();
+
+  var savedId = null;
+  try{ savedId = localStorage.getItem(ME_KEY); }catch(e){}
+  if (savedId){
+    var m = (DATA.members || []).filter(function(x){ return x.id === savedId; })[0];
+    if (m) setMe(m);
+  }
+
+  pull(false);
+
+  if ('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+})();
+</script>
+</body>
+</html>
