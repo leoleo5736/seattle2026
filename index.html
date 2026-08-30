@@ -511,6 +511,12 @@ section.on{display:block}
 }
 .chipx.good{background:rgba(45,106,79,.12);color:var(--moss)}
 .chipx.bad{background:rgba(194,90,71,.12);color:var(--salmon)}
+.p-note{
+  font-size:12.5px;line-height:1.7;color:rgba(22,48,43,.7);
+  margin-top:10px;padding-left:10px;
+  border-left:2px solid var(--line);
+  white-space:pre-line;
+}
 .p-foot{
   display:flex;align-items:center;justify-content:space-between;
   gap:10px;margin-top:11px;padding-top:10px;border-top:1px solid var(--line2);
@@ -674,6 +680,13 @@ section.on{display:block}
   header .bar,header .tabs{max-width:780px;margin-left:auto;margin-right:auto}
   .sgrid{grid-template-columns:repeat(4,1fr)}
   .stn{width:62px}
+  /* 大螢幕上抽屜置中收窄，欄位才不會被拉成一整條 */
+  .drawer{
+    left:50%;right:auto;transform:translate(-50%,101%);
+    width:min(520px,92vw);
+    border-radius:13px 13px 0 0;
+  }
+  .drawer.on{transform:translate(-50%,0)}
 }
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition-duration:.01ms!important}
@@ -1507,6 +1520,7 @@ function stayCard(r){
       (r.pros ? '<span class="chipx good">＋ ' + esc(r.pros) + '</span>' : '') +
       (r.cons ? '<span class="chipx bad">− ' + esc(r.cons) + '</span>' : '') +
     '</div>' : '') +
+    (r.note ? '<p class="p-note">' + esc(r.note).replace(/\n/g,'<br>') + '</p>' : '') +
     '<div class="p-foot">' +
       '<span class="votes">' + (voters.length ? '👍 ' + esc(voters.join('、')) : '還沒人投票') + '</span>' +
       '<span style="display:flex;gap:8px;align-items:center">' +
@@ -1635,6 +1649,7 @@ var FORMS = {
     ['transport','交通','text'],
     ['pros','優點','text'],
     ['cons','缺點','text'],
+    ['note','備註','textarea'],
     ['link','訂房連結','url']
   ],
   flights: [
