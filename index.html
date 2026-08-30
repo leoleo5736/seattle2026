@@ -17,6 +17,12 @@
    步驟看「部署教學.md」
    ============================================================ */
 var API_URL = 'https://script.google.com/macros/s/AKfycbyiYn4XLCCyqmgvA9v6Whg3fZbEi_9_8SAL0yC24gxHQm0I2SAx003IsB3HdxWcyGmp/exec';
+
+/* 如果上面沒填，會改用你在網站畫面上貼過的網址（存在這台裝置裡）。
+   填了上面這行，全部的人都不用自己設定。 */
+try {
+  if (!API_URL) API_URL = localStorage.getItem('sea-pdx-api') || '';
+} catch (e) {}
 </script>
 
 <style>
@@ -188,6 +194,17 @@ a{color:inherit}
   margin-top:10px;padding:7px 20px;border-radius:999px;
   background:var(--fir);color:var(--fog2);font-size:12.5px;letter-spacing:.08em;
 }
+.gate-msg .ghostbtn{
+  background:transparent;color:rgba(22,48,43,.55);
+  border:1px solid var(--line);margin-left:7px;
+}
+.gate-msg input{
+  width:100%;margin-top:10px;padding:9px 11px;
+  border:1px solid var(--line);border-radius:var(--r);
+  background:var(--paper);color:var(--fir);font-size:13px;
+}
+.gate-msg input:focus{outline:none;border-color:var(--moss)}
+.gate-msg b{font-weight:600;color:var(--fir)}
 /* 進站畫面的連線狀態 */
 .gate-status{
   margin-top:18px;font-size:11px;letter-spacing:.06em;
@@ -1027,9 +1044,9 @@ function jsonp(url, cb, onErr){
 
 function pull(silent){
   if (!API_URL){
-    gateState = 'fail';
+    gateState = 'nourl';
     renderPicker();
-    status('off', '離線模式（尚未設定 API_URL）');
+    status('off', '尚未設定連線網址');
     return;
   }
   gateState = 'loading';
@@ -1225,12 +1242,29 @@ function renderPicker(){
     return;
   }
 
-  // 連不上而且沒有快取 → 講清楚發生什麼事，並給重試按鈕
+  // 還沒設定連線網址 → 直接讓使用者在畫面上貼
+  if (!list.length && gateState === 'nourl'){
+    wrap.innerHTML = '<div class="gate-msg">' +
+      '<p><b>還沒接上你的資料表</b></p>' +
+      '<p class="sub">這份網頁需要一個 Apps Script 網址才能讀寫資料。<br>' +
+        '在 Google 試算表 → 擴充功能 → Apps Script → 部署 → <b>管理部署作業</b> 就能複製到，' +
+        '結尾是 <code>/exec</code>。</p>' +
+      '<input type="url" id="urlInput" placeholder="https://script.google.com/macros/s/..../exec">' +
+      '<button type="button" id="saveUrlBtn">連上去</button>' +
+      '<p class="sub" style="margin-top:8px">貼一次就會記住。想讓所有人都免設定的話，' +
+        '把網址寫進 <code>index.html</code> 第 20 行再上傳（看部署教學 B 部分）。</p>' +
+      '</div>';
+    return;
+  }
+
+  // 有網址但連不上 → 重試
   if (!list.length && gateState === 'fail'){
     wrap.innerHTML = '<div class="gate-msg">' +
-      '<p>載入不到成員資料。</p>' +
-      '<p class="sub">可能是網路不通，或 <code>API_URL</code> 還沒設定好。</p>' +
+      '<p><b>連不上伺服器</b></p>' +
+      '<p class="sub">網址設定好了，但拿不到資料。可能是網路不通，' +
+        '或是部署時「誰可以存取」沒有選「所有人」。</p>' +
       '<button type="button" id="retryBtn">重試</button>' +
+      '<button type="button" id="resetUrlBtn" class="ghostbtn">改網址</button>' +
       '</div>';
     return;
   }
@@ -1824,6 +1858,27 @@ $('#tripBtn').addEventListener('click', openTripDialog);
 
 $('#picker').addEventListener('click', function(e){
   if (e.target.closest('#retryBtn')){ pull(false); return; }
+
+  if (e.target.closest('#saveUrlBtn')){
+    var v = String($('#urlInput').value || '').trim();
+    if (!/^https:\/\/script\.google\.com\/.*\/exec$/.test(v)){
+      toast('網址要以 https://script.google.com 開頭、/exec 結尾');
+      return;
+    }
+    API_URL = v;
+    try{ localStorage.setItem('sea-pdx-api', v); }catch(err){}
+    pull(false);
+    return;
+  }
+
+  if (e.target.closest('#resetUrlBtn')){
+    try{ localStorage.removeItem('sea-pdx-api'); }catch(err){}
+    API_URL = '';
+    gateState = 'nourl';
+    renderPicker();
+    status('off', '尚未設定連線網址');
+    return;
+  }
   if (e.target.closest('[data-addmember]')){ openMemberDialog(null); return; }
   var btn = e.target.closest('[data-id]');
   if (!btn) return;
