@@ -511,6 +511,37 @@ section.on{display:block}
 }
 .chipx.good{background:rgba(45,106,79,.12);color:var(--moss)}
 .chipx.bad{background:rgba(194,90,71,.12);color:var(--salmon)}
+/* 航班代號徽章 */
+.fno{
+  display:inline-block;margin-right:7px;padding:1px 7px;
+  border-radius:3px;background:var(--fir);color:var(--amber-lo);
+  font-family:var(--display);font-size:11.5px;letter-spacing:.08em;
+  vertical-align:1px;
+}
+/* 出發／抵達時間 */
+.times{
+  display:flex;align-items:center;gap:10px;
+  margin-top:11px;padding:9px 12px;
+  background:var(--fog);border-radius:var(--r);
+}
+.times .t{text-align:center;flex:0 0 auto}
+.times .t b{
+  display:block;font-family:var(--display);font-size:16px;
+  letter-spacing:.02em;font-variant-numeric:tabular-nums;font-weight:500;
+}
+.times .t u{
+  display:block;text-decoration:none;font-size:9.5px;
+  letter-spacing:.16em;color:rgba(22,48,43,.45);margin-top:1px;
+}
+.times .tline{
+  flex:1;position:relative;text-align:center;
+  font-size:10.5px;color:rgba(22,48,43,.5);
+  padding-bottom:7px;
+}
+.times .tline::after{
+  content:'';position:absolute;left:0;right:0;bottom:2px;height:1px;
+  background:repeating-linear-gradient(90deg,var(--glacier) 0 4px,transparent 4px 8px);
+}
 .p-note{
   font-size:12.5px;line-height:1.7;color:rgba(22,48,43,.7);
   margin-top:10px;padding-left:10px;
@@ -1536,16 +1567,26 @@ function renderFlights(){
   var rows = (DATA.flights || []).slice().sort(function(a,b){ return n(a.sort) - n(b.sort); });
   $('#flightList').innerHTML = rows.length ? rows.map(function(r){
     var price = n(r.price);
+    var dep = String(r.depart || '').trim(), arr = String(r.arrive || '').trim();
     return '<article class="pcard">' +
       '<div class="p-top">' +
-        '<div><p class="p-name">' + esc(r.route) + '</p>' +
+        '<div><p class="p-name">' +
+          (r.flightNo ? '<span class="fno">' + esc(r.flightNo) + '</span>' : '') +
+          esc(r.route) + '</p>' +
           '<p class="p-sub">' + esc(r.airline || '待查') + '</p></div>' +
         '<div class="p-price">' + (price ? money(price) : '—') +
           '<small>' + esc(r.type || '') + '</small></div>' +
       '</div>' +
-      ((r.stops || r.duration || r.note) ? '<div class="p-meta">' +
+      (dep || arr
+        ? '<div class="times">' +
+            '<span class="t"><b>' + esc(dep || '—') + '</b><u>出發</u></span>' +
+            '<span class="tline">' + (r.duration ? esc(r.duration) : '') + '</span>' +
+            '<span class="t"><b>' + esc(arr || '—') + '</b><u>抵達</u></span>' +
+          '</div>'
+        : '') +
+      ((r.stops || (r.duration && !dep && !arr) || r.note) ? '<div class="p-meta">' +
         (r.stops ? '<span class="chipx">' + esc(r.stops) + '</span>' : '') +
-        (r.duration ? '<span class="chipx">⏱ ' + esc(r.duration) + '</span>' : '') +
+        (r.duration && !dep && !arr ? '<span class="chipx">⏱ ' + esc(r.duration) + '</span>' : '') +
         (r.note ? '<span class="chipx">' + esc(r.note) + '</span>' : '') +
       '</div>' : '') +
       '<div class="p-foot">' +
@@ -1653,10 +1694,13 @@ var FORMS = {
     ['link','訂房連結','url']
   ],
   flights: [
+    ['flightNo','航班代號','text'],
     ['route','航線','text'],
     ['airline','航空公司','text'],
     ['price','價格 NT$','number'],
     ['type','類型','select', function(){ return ['來回','單程','直飛','機+酒']; }],
+    ['depart','出發時間','text'],
+    ['arrive','抵達時間','text'],
     ['stops','轉機','text'],
     ['duration','飛行時間','text'],
     ['note','備註','textarea'],
@@ -1680,6 +1724,39 @@ var FORMS = {
   ]
 };
 var SHEET_NAME = { days:'行程', stays:'住宿', flights:'機票', trains:'車票', todos:'待辦', members:'成員' };
+
+/* ============================================================
+   航班對照表（台北 ⇄ 西雅圖，2026 秋季班表）
+   ------------------------------------------------------------
+   為什麼不接航班 API：那些服務都要 API 金鑰，而金鑰會寫在這個
+   檔案裡、repository 又是公開的，等於把金鑰貼在網路上。這趟只有
+   幾條固定航線，班表半年內也不會變，寫死反而更快也更可靠。
+
+   要新增或修改航班，直接改下面這張表就好。格式：
+     '航班代號': [出發機場, 抵達機場, 起飛時間, 抵達時間, 航空公司, 飛行時間, 說明]
+   時間是「當地時間」。跨日的話在抵達時間後面加 +1。
+   ============================================================ */
+var FLIGHTS = {
+  // 長榮
+  'BR26' : ['TPE 桃園','SEA 西雅圖','16:50','12:20','長榮航空','約 11h','同日抵達（跨換日線）'],
+  'BR25' : ['SEA 西雅圖','TPE 桃園','01:30','05:45+1','長榮航空','約 13h','抵台為隔天'],
+  // 星宇
+  'JX2'  : ['TPE 桃園','SEA 西雅圖','17:25','12:55','星宇航空','約 11h','同日抵達（跨換日線）'],
+  'JX1'  : ['SEA 西雅圖','TPE 桃園','02:05','06:20+1','星宇航空','約 13h','抵台為隔天'],
+  // 中華
+  'CI32' : ['TPE 桃園','SEA 西雅圖','23:55','19:20','中華航空','約 11h','同日抵達（跨換日線）'],
+  'CI31' : ['SEA 西雅圖','TPE 桃園','01:20','05:40+1','中華航空','約 13h','抵台為隔天'],
+  // 達美（轉機）
+  'DL158': ['TPE 桃園','SEA 西雅圖','23:40','19:05','達美航空','約 11h','轉機航線，時間僅供參考']
+};
+
+/* 把使用者打的字正規化：br 26 / BR-26 → BR26 */
+function normFlightNo(v){
+  return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g,'');
+}
+function lookupFlight(no){
+  return FLIGHTS[normFlightNo(no)] || null;
+}
 
 function cityOptions(){
   var out = [];
@@ -1731,11 +1808,83 @@ function openDrawer(sheet, id){
     } else {
       ctl = '<input type="' + type + '" data-k="' + key + '" value="' + esc(v) + '">';
     }
-    return '<div class="field"><label>' + esc(label) + '</label>' + ctl + '</div>';
+    return '<div class="field"><label>' + esc(label) + '</label>' + ctl +
+      (key === 'flightNo'
+        ? '<span class="hint" id="fnHint">打航班代號（例如 <b>BR26</b>）會自動帶入時間。' +
+          '查不到的航班可以自己填下面的欄位。</span>'
+        : '') +
+      '</div>';
   }).join('');
+
+  if (sheet === 'flights') wireFlightLookup();
 
   $('#scrim').classList.add('on');
   $('#drawer').classList.add('on');
+}
+
+/* 打航班代號 → 自動填其他欄位 */
+function wireFlightLookup(){
+  var body = $('#drawerBody');
+  var input = body.querySelector('[data-k="flightNo"]');
+  if (!input) return;
+  var hint = $('#fnHint');
+
+  function fill(){
+    var f = lookupFlight(input.value);
+    if (!f){
+      if (String(input.value).trim()){
+        hint.innerHTML = '查不到 <b>' + esc(normFlightNo(input.value)) +
+          '</b>，下面的欄位請自己填。';
+      } else {
+        hint.innerHTML = '打航班代號（例如 <b>BR26</b>）會自動帶入時間。' +
+          '查不到的航班可以自己填下面的欄位。';
+      }
+      return;
+    }
+
+    // 只填空的欄位，不覆蓋你已經改過的內容
+    function set(key, val){
+      var el = body.querySelector('[data-k="' + key + '"]');
+      if (el && !String(el.value).trim()) el.value = val;
+    }
+    set('route',    f[0] + ' → ' + f[1]);
+    set('airline',  f[4]);
+    set('depart',   f[2]);
+    set('arrive',   f[3]);
+    set('duration', f[5]);
+    set('stops',    '直飛');
+    set('type',     '單程');
+    set('note',     f[6]);
+
+    hint.innerHTML = '✓ <b>' + esc(normFlightNo(input.value)) + '</b>　' +
+      esc(f[4]) + '　' + esc(f[0]) + ' ' + esc(f[2]) +
+      ' → ' + esc(f[1]) + ' ' + esc(f[3]) +
+      '<br><a href="#" id="fnForce">用班表覆蓋下面所有欄位</a>';
+  }
+
+  input.addEventListener('input', fill);
+  input.addEventListener('change', fill);
+  if (String(input.value).trim()) fill();
+
+  // 強制覆蓋（連已經填過的欄位一起換掉）
+  body.addEventListener('click', function(e){
+    if (!e.target.closest('#fnForce')) return;
+    e.preventDefault();
+    var f = lookupFlight(input.value);
+    if (!f) return;
+    function force(key, val){
+      var el = body.querySelector('[data-k="' + key + '"]');
+      if (el) el.value = val;
+    }
+    force('route',    f[0] + ' → ' + f[1]);
+    force('airline',  f[4]);
+    force('depart',   f[2]);
+    force('arrive',   f[3]);
+    force('duration', f[5]);
+    force('stops',    '直飛');
+    force('note',     f[6]);
+    toast('已用班表覆蓋');
+  });
 }
 
 /* 行程設定：改標題、起訖日期、兩個城市各住幾天 */
@@ -2095,8 +2244,20 @@ window.addEventListener('offline', function(){ status('off','離線 — 顯示�
 
   pull(false);
 
+  // 有新版就立刻換掉，不用等使用者把所有分頁關光
   if ('serviceWorker' in navigator){
-    navigator.serviceWorker.register('sw.js').catch(function(){});
+    var reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    });
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      // 回到這個頁面時順便問一下有沒有新版
+      document.addEventListener('visibilitychange', function(){
+        if (!document.hidden) reg.update().catch(function(){});
+      });
+    }).catch(function(){});
   }
 })();
 </script>
