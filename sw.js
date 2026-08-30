@@ -1,22 +1,16 @@
-/* 上海迪士尼 2026 — Service Worker
- *
- * 這支檔案的唯一任務：讓你人在上海、連不上 Google 的時候，
- * 打開這個網站還看得到行程。
- *
- * 策略分兩種：
- *   1. 網站本身的檔案（html / js / 圖示）→ 快取優先（cache-first）
- *      開了就用快取裡的，速度快、沒網路也能開，
- *      同時在背景偷偷更新，下次開就是新版。
- *   2. Apps Script（Google 試算表資料）→ 完全不快取
- *      資料一定要即時，寧可失敗也不要給你看到過期的行程。
- *      （資料的離線備份是由 index.html 自己存在 localStorage，
- *        不歸這裡管。）
+/**
+ * 西雅圖 × 波特蘭 — Service Worker
+ * ------------------------------------------------------------
+ * 做兩件事：
+ *   1. 把網站外殼存進手機，飛機上、山區沒訊號時也打得開
+ *   2. 絕不快取 Apps Script 的回應，行程資料寧可拿不到，
+ *      也不要拿到過期的舊資料
  *
  * 改版時把 VERSION 加一，舊快取會自動清掉。
  */
 
-var VERSION = 'v7';
-var CACHE = 'sh-disney-' + VERSION;
+var VERSION = 'v2';
+var CACHE = 'sea-pdx-' + VERSION;
 
 /* 網站外殼：這幾個檔案存下來，離線就能開 */
 var SHELL = [
@@ -28,55 +22,44 @@ var SHELL = [
   './icon-maskable-512.png'
 ];
 
-/* ---------- 安裝：把外殼抓下來 ---------- */
 self.addEventListener('install', function (e) {
   e.waitUntil(
     caches.open(CACHE).then(function (c) {
-      /* 一個一個抓，某個檔案掛掉不會害整包安裝失敗 */
+      // 一個一個存，其中一個失敗不會拖垮整次安裝
       return Promise.all(SHELL.map(function (url) {
         return c.add(new Request(url, { cache: 'reload' })).catch(function () {});
       }));
-    }).then(function () {
-      return self.skipWaiting();
-    })
+    }).then(function () { return self.skipWaiting(); })
   );
 });
 
-/* ---------- 啟用：清掉舊版快取 ---------- */
 self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(keys.map(function (k) {
-        if (k !== CACHE && k.indexOf('sh-disney-') === 0) return caches.delete(k);
+        if (k.indexOf('sea-pdx-') === 0 && k !== CACHE) return caches.delete(k);
       }));
-    }).then(function () {
-      return self.clients.claim();
-    })
+    }).then(function () { return self.clients.claim(); })
   );
 });
 
-/* ---------- 攔截請求 ---------- */
 self.addEventListener('fetch', function (e) {
   var req = e.request;
-
-  /* 只管 GET，POST（存資料）一律放行 */
   if (req.method !== 'GET') return;
 
   var url;
   try { url = new URL(req.url); } catch (err) { return; }
 
-  /* Google Apps Script 的資料一律走網路，絕不快取 —
-     行程資料寧可拿不到，也不要拿到舊的 */
+  // Apps Script 一律直連，永遠不快取
   if (url.hostname.indexOf('script.google') > -1 ||
       url.hostname.indexOf('googleusercontent') > -1) {
     return;
   }
 
-  /* 其他網域（外部連結、地圖等）不插手 */
+  // 其他網域的資源不管
   if (url.origin !== self.location.origin) return;
 
-  /* 導覽請求（直接打網址、從桌面圖示開）
-     → 先試網路，失敗就回快取的 index.html */
+  // 開網頁：先試網路，失敗才拿快取
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req).then(function (res) {
@@ -85,31 +68,30 @@ self.addEventListener('fetch', function (e) {
         return res;
       }).catch(function () {
         return caches.match('./index.html').then(function (hit) {
-          return hit || caches.match('./');
+          return hit || new Response('離線中，而且還沒存過這個網站。', {
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+          });
         });
       })
     );
     return;
   }
 
-  /* 一般靜態檔 → 快取優先，背景更新 */
+  // 其他檔案：先拿快取，背景順便更新
   e.respondWith(
     caches.match(req).then(function (hit) {
-      var live = fetch(req).then(function (res) {
-        if (res && res.status === 200 && res.type === 'basic') {
+      var net = fetch(req).then(function (res) {
+        if (res && res.status === 200) {
           var copy = res.clone();
           caches.open(CACHE).then(function (c) { c.put(req, copy); });
         }
         return res;
-      }).catch(function () {
-        return hit;
-      });
-      return hit || live;
+      }).catch(function () { return hit; });
+      return hit || net;
     })
   );
 });
 
-/* ---------- 讓網頁可以叫它立刻更新 ---------- */
 self.addEventListener('message', function (e) {
   if (e.data === 'skipWaiting') self.skipWaiting();
 });
