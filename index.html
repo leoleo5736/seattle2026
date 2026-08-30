@@ -1726,28 +1726,42 @@ var FORMS = {
 var SHEET_NAME = { days:'行程', stays:'住宿', flights:'機票', trains:'車票', todos:'待辦', members:'成員' };
 
 /* ============================================================
-   航班對照表（台北 ⇄ 西雅圖，2026 秋季班表）
+   航班對照表（台北 ⇄ 西雅圖直飛，2026-08 查得的表定時刻）
    ------------------------------------------------------------
-   為什麼不接航班 API：那些服務都要 API 金鑰，而金鑰會寫在這個
-   檔案裡、repository 又是公開的，等於把金鑰貼在網路上。這趟只有
-   幾條固定航線，班表半年內也不會變，寫死反而更快也更可靠。
+   ⚠️ 這是「參考用」的班表快照，不是即時資料。
+      航空公司會依季節調整時刻（尤其是美國日光節約時間在
+      11 月初結束的前後），訂票前務必到官網再確認一次。
 
-   要新增或修改航班，直接改下面這張表就好。格式：
-     '航班代號': [出發機場, 抵達機場, 起飛時間, 抵達時間, 航空公司, 飛行時間, 說明]
+   為什麼不接航班 API：那些服務都要 API 金鑰，而金鑰會寫在這個
+   檔案裡、repository 又是公開的，等於把金鑰貼在網路上。
+
+   格式：
+     '航班代號': [出發機場, 抵達機場, 起飛時間, 抵達時間,
+                  航空公司, 飛行時間, 說明]
    時間是「當地時間」。跨日的話在抵達時間後面加 +1。
    ============================================================ */
 var FLIGHTS = {
-  // 長榮
-  'BR26' : ['TPE 桃園','SEA 西雅圖','16:50','12:20','長榮航空','約 11h','同日抵達（跨換日線）'],
-  'BR25' : ['SEA 西雅圖','TPE 桃園','01:30','05:45+1','長榮航空','約 13h','抵台為隔天'],
-  // 星宇
-  'JX2'  : ['TPE 桃園','SEA 西雅圖','17:25','12:55','星宇航空','約 11h','同日抵達（跨換日線）'],
-  'JX1'  : ['SEA 西雅圖','TPE 桃園','02:05','06:20+1','星宇航空','約 13h','抵台為隔天'],
-  // 中華
-  'CI32' : ['TPE 桃園','SEA 西雅圖','23:55','19:20','中華航空','約 11h','同日抵達（跨換日線）'],
-  'CI31' : ['SEA 西雅圖','TPE 桃園','01:20','05:40+1','中華航空','約 13h','抵台為隔天'],
-  // 達美（轉機）
-  'DL158': ['TPE 桃園','SEA 西雅圖','23:40','19:05','達美航空','約 11h','轉機航線，時間僅供參考']
+  // ── 台北 → 西雅圖（都是跨換日線，當地時間同一天抵達）
+  'BR26' : ['TPE 桃園','SEA 西雅圖','23:40','19:30','長榮航空','約 10h50m','787-10。同日抵達（跨換日線）'],
+  'BR24' : ['TPE 桃園','SEA 西雅圖','23:00','18:50','長榮航空','約 10h50m','787-10。同日抵達（跨換日線）'],
+  'JX32' : ['TPE 桃園','SEA 西雅圖','20:10','16:35','星宇航空','約 10h47m','A350。同日抵達（跨換日線）'],
+  'CI22' : ['TPE 桃園','SEA 西雅圖','','','中華航空','約 11h','時刻依季節調整，請查官網'],
+  'DL68' : ['TPE 桃園','SEA 西雅圖','09:40','06:10','達美航空','約 11h30m','時刻變動較頻繁，請查官網'],
+
+  // ── 西雅圖 → 台北（都是隔天抵台）
+  'BR25' : ['SEA 西雅圖','TPE 桃園','01:30','05:10+1','長榮航空','約 12h40m','2026/9/2–10/25 班表。10/26 起改 01:10 → 05:20'],
+  'BR23' : ['SEA 西雅圖','TPE 桃園','','','長榮航空','約 12h40m','傍晚出發、隔天抵台。時刻請查官網'],
+  'JX31' : ['SEA 西雅圖','TPE 桃園','01:15','04:55+1','星宇航空','約 11h21m','A350。隔天抵台'],
+  'CI21' : ['SEA 西雅圖','TPE 桃園','','','中華航空','約 13h','時刻依季節調整，請查官網'],
+  'DL69' : ['SEA 西雅圖','TPE 桃園','16:11','19:55+1','達美航空','約 12h44m','A350，每週 6 班。時刻變動較頻繁']
+};
+
+/* 官網連結，方便查證 */
+var AIRLINE_SITE = {
+  '長榮航空': 'https://booking.evaair.com/flyeva/eva/b2c/flight-schedules.aspx?lang=zh-tw',
+  '星宇航空': 'https://www.starlux-airlines.com/zh-TW/timetable',
+  '中華航空': 'https://booking.china-airlines.com/Flightschedule/?country=tw&locale=zh-tw',
+  '達美航空': 'https://www.delta.com/'
 };
 
 /* 把使用者打的字正規化：br 26 / BR-26 → BR26 */
@@ -1810,8 +1824,10 @@ function openDrawer(sheet, id){
     }
     return '<div class="field"><label>' + esc(label) + '</label>' + ctl +
       (key === 'flightNo'
-        ? '<span class="hint" id="fnHint">打航班代號（例如 <b>BR26</b>）會自動帶入時間。' +
-          '查不到的航班可以自己填下面的欄位。</span>'
+        ? '<span class="hint" id="fnHint">打航班代號會自動帶入時間。' +
+          '台北⇄西雅圖直飛：<b>BR23/24/25/26</b>、<b>JX31/32</b>、' +
+          '<b>CI21/22</b>、<b>DL68/69</b>。<br>' +
+          '<span style="color:rgba(22,48,43,.45)">班表為參考用，訂票前請到官網確認。</span></span>'
         : '') +
       '</div>';
   }).join('');
@@ -1842,8 +1858,9 @@ function wireFlightLookup(){
       return;
     }
 
-    // 只填空的欄位，不覆蓋你已經改過的內容
+    // 只填空的欄位，不覆蓋你已經改過的內容。班表沒有的值就不填
     function set(key, val){
+      if (!String(val || '').trim()) return;
       var el = body.querySelector('[data-k="' + key + '"]');
       if (el && !String(el.value).trim()) el.value = val;
     }
@@ -1856,10 +1873,18 @@ function wireFlightLookup(){
     set('type',     '單程');
     set('note',     f[6]);
 
-    hint.innerHTML = '✓ <b>' + esc(normFlightNo(input.value)) + '</b>　' +
-      esc(f[4]) + '　' + esc(f[0]) + ' ' + esc(f[2]) +
-      ' → ' + esc(f[1]) + ' ' + esc(f[3]) +
-      '<br><a href="#" id="fnForce">用班表覆蓋下面所有欄位</a>';
+    var site = AIRLINE_SITE[f[4]];
+    var hasTime = f[2] && f[3];
+    hint.innerHTML =
+      '✓ <b>' + esc(normFlightNo(input.value)) + '</b>　' + esc(f[4]) + '　' +
+      (hasTime
+        ? esc(f[0]) + ' ' + esc(f[2]) + ' → ' + esc(f[1]) + ' ' + esc(f[3])
+        : '<span style="color:var(--salmon)">這班的時刻我沒有可靠資料，請自己填</span>') +
+      '<br><span style="color:rgba(22,48,43,.45)">參考用班表（2026-08 查得），' +
+        '訂票前請到' +
+        (site ? '<a href="' + esc(site) + '" target="_blank" rel="noopener">官網</a>' : '官網') +
+        '確認</span>' +
+      (hasTime ? '<br><a href="#" id="fnForce">用班表覆蓋下面所有欄位</a>' : '');
   }
 
   input.addEventListener('input', fill);
@@ -1873,6 +1898,7 @@ function wireFlightLookup(){
     var f = lookupFlight(input.value);
     if (!f) return;
     function force(key, val){
+      if (!String(val || '').trim()) return;
       var el = body.querySelector('[data-k="' + key + '"]');
       if (el) el.value = val;
     }
