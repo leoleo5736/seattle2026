@@ -121,22 +121,28 @@ a{color:inherit}
 
 /* 路線示意：兩座城市 + 中間的火車 */
 .route{
-  display:flex;align-items:center;justify-content:center;
-  gap:0;margin:4px auto 8px;max-width:400px;
+  display:flex;align-items:flex-start;justify-content:center;
+  gap:0;margin:4px auto 8px;max-width:420px;
+  flex-wrap:wrap;
 }
 .route .stop{flex:0 0 auto;text-align:center;padding:0 4px}
 .route .stop b{
-  display:block;font-family:var(--display);
+  display:inline-block;font-family:var(--display);
   font-size:15px;letter-spacing:.08em;text-transform:uppercase;
+  padding-bottom:2px;
 }
+/* 分段多的時候整體縮小 */
+.route.tight .stop b{font-size:12.5px;letter-spacing:.04em}
+.route.tight .stop span{font-size:9.5px}
+.route.tight .seg{margin:0 3px}
 .route .stop span{
   display:block;font-size:10.5px;letter-spacing:.14em;
   color:rgba(22,48,43,.5);margin-top:1px;
 }
 .route .seg{
-  flex:1 1 auto;position:relative;height:1.5px;
+  flex:1 1 auto;min-width:34px;position:relative;height:1.5px;
   background:repeating-linear-gradient(90deg,var(--moss) 0 5px,transparent 5px 10px);
-  margin:0 6px;top:-6px;
+  margin:11px 6px 0;
 }
 .route .seg::after{
   content:'';position:absolute;left:50%;top:-7px;
@@ -175,6 +181,22 @@ a{color:inherit}
 .avatar.add{
   font-size:24px;color:var(--glacier);
   border-style:dashed;background:transparent;
+}
+.avatar.guest{
+  border-style:dashed;background:transparent;
+  border-color:rgba(22,48,43,.18);
+}
+/* 訪客模式：藏起所有會改資料的按鈕 */
+body.readonly .addrow,
+body.readonly .ibtn,
+body.readonly .vbtn,
+body.readonly #strayWarn button{ display:none!important; }
+body.readonly .p-foot{ justify-content:flex-start }
+.robadge{
+  display:inline-block;margin-left:7px;padding:1px 7px;
+  border-radius:999px;background:rgba(127,168,160,.22);
+  color:var(--glacier);font-size:10px;letter-spacing:.12em;
+  vertical-align:1px;
 }
 /* 載入中的骨架 */
 .person.ghost{pointer-events:none}
@@ -749,13 +771,7 @@ section.on{display:block}
     <h1 class="gate-title" id="gateTitle">西雅圖 × 波特蘭</h1>
     <p class="gate-sub" id="gateRange"></p>
 
-    <div class="route">
-      <div class="stop"><b>SEA</b><span id="rSea">—</span></div>
-      <div class="seg"><i>🚆</i></div>
-      <div class="stop"><b>PDX</b><span id="rPdx">—</span></div>
-      <div class="seg"><i>🚆</i></div>
-      <div class="stop"><b>SEA</b><span id="rBack">—</span></div>
-    </div>
+    <div class="route" id="route"></div>
 
     <p class="countdown" id="countdown">&nbsp;</p>
 
@@ -765,6 +781,7 @@ section.on{display:block}
     <p class="gate-status" id="gateStatus">連線中…</p>
 
     <p class="gate-foot">選一個人進入，之後的修改都會記名字<br>
+      想給別人看又不希望被改到，請他選「訪客」<br>
       <button type="button" id="manageBtn">管理成員</button>　·　<button type="button" id="tripBtn">改行程日期</button>
     </p>
   </div>
@@ -879,6 +896,12 @@ var QUEUE_KEY = 'sea-pdx-queue';
 
 var DATA = { settings:[], members:[], days:[], stays:[], flights:[], trains:[], todos:[] };
 var ME = null;
+
+/* 訪客：唯讀身分。不存在試算表裡，所以不會被誤刪、
+   也不會被算進投票人數。 */
+var GUEST = { id:'__guest__', name:'訪客', emoji:'👀', color:'#7FA8A0', guest:true };
+function isGuest(){ return !!(ME && ME.guest); }
+function canEdit(){ return !isGuest(); }
 var activeDay = '';
 var activeTab = 'days';
 var editing = null;
@@ -1119,6 +1142,8 @@ function pull(silent){
 
 var pending = 0;
 function push(payload, done){
+  // 最後一道防線：訪客的任何寫入都不會離開這台裝置
+  if (!canEdit()){ done && done(false); return; }
   var q = getQueue();
   if (!API_URL){
     q.push(payload); setQueue(q);
@@ -1180,8 +1205,10 @@ function flushQueue(){
   })();
 }
 
-/* 本機先套用，畫面立刻反應，再送出 */
+/* 本機先套用，畫面立刻反應，再送出。
+   訪客一律擋在這裡——藏按鈕只是視覺，真正的防線在這 */
 function saveRow(sheet, row){
+  if (!canEdit()){ toast('訪客模式不能修改'); return; }
   if (!row.id) row.id = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2,7);
   if (sheet === 'days' && row.date) row.date = normDate(row.date);
   row.updatedBy = ME ? ME.name : '';
@@ -1198,6 +1225,7 @@ function saveRow(sheet, row){
 }
 
 function deleteRow(sheet, id){
+  if (!canEdit()){ toast('訪客模式不能修改'); return; }
   DATA[sheet] = (DATA[sheet] || []).filter(function(r){ return r.id !== id; });
   saveCache();
   renderSheet(sheet);
@@ -1244,27 +1272,11 @@ function renderHeadline(){
   var a = TRIP_DAYS[0].split('-'), b = TRIP_DAYS[TRIP_DAYS.length - 1].split('-');
   $('#gateRange').textContent = a[0] + ' · ' + (+a[1]) + '/' + (+a[2]) + ' — ' + (+b[1]) + '/' + (+b[2]);
   $('#gateTitle').textContent = TRIP_TITLE;
-  $('#brand').textContent = TRIP_TITLE;
+  $('#brand').innerHTML = esc(TRIP_TITLE) +
+    (isGuest() ? '<span class="robadge">唯讀</span>' : '');
   document.title = TRIP_TITLE;
 
-  // 路線圖：實際待在每個城市的天數（用 cityOf 算，重疊日只算一次）
-  var cnt = {};
-  TRIP_DAYS.forEach(function(d){
-    var c = cityOf(d);
-    if (c) cnt[c] = (cnt[c] || 0) + 1;
-  });
-  var cities = cityList();
-  $('#rSea').textContent  = cities[0] ? (cnt[cities[0]] || 0) + ' 天' : '—';
-  $('#rPdx').textContent  = cities[1] ? (cnt[cities[1]] || 0) + ' 天' : '—';
-  $('#rBack').textContent = '回程';
-
-  // 城市名稱也跟著設定走，不要寫死 SEA / PDX
-  var st = document.querySelectorAll('.route .stop b');
-  if (st.length === 3){
-    st[0].textContent = cities[0] || '—';
-    st[1].textContent = cities[1] || '—';
-    st[2].textContent = cities[0] || '—';
-  }
+  renderRoute();
 
   var d = daysToGo();
   $('#countdown').innerHTML = d > 0
@@ -1274,6 +1286,42 @@ function renderHeadline(){
 
 /* gateState: 'loading' | 'ready' | 'fail' */
 var gateState = 'loading';
+
+/* 路線圖：完全依「城市分段」產生，幾段就畫幾站。
+   每一站底下顯示那一段實際住幾晚（重疊的移動日算給後面那段）。 */
+function renderRoute(){
+  var box = $('#route');
+  if (!box) return;
+
+  if (!LEGS.length){
+    box.innerHTML = '<div class="stop"><b>—</b><span>還沒設定分段</span></div>';
+    return;
+  }
+
+  // 每一段各佔幾天：逐日歸屬，同一天不會被算兩次
+  var counts = LEGS.map(function(){ return 0; });
+  TRIP_DAYS.forEach(function(d){
+    for (var i = LEGS.length - 1; i >= 0; i--){
+      if (d >= LEGS[i].from && d <= LEGS[i].to){ counts[i]++; return; }
+    }
+  });
+
+  var html = '';
+  LEGS.forEach(function(leg, i){
+    if (i > 0){
+      // 兩段之間畫一條移動線；同城市來回就不放火車圖示
+      var same = LEGS[i - 1].city === leg.city;
+      html += '<div class="seg"><i>' + (same ? '·' : '🚆') + '</i></div>';
+    }
+    html += '<div class="stop">' +
+      '<b style="border-bottom:2px solid ' + cityColor(leg.city) + '">' + esc(leg.city) + '</b>' +
+      '<span>' + counts[i] + ' 天</span></div>';
+  });
+  box.innerHTML = html;
+
+  // 段數多的時候自動縮小，才不會擠爆
+  box.classList.toggle('tight', LEGS.length > 3);
+}
 
 function renderPicker(){
   var wrap = $('#picker');
@@ -1320,7 +1368,9 @@ function renderPicker(){
       '<span>' + esc(m.name) + '</span></button>';
   }).join('') +
   '<button class="person" data-addmember="1">' +
-    '<span class="avatar add">＋</span><span>新增成員</span></button>';
+    '<span class="avatar add">＋</span><span>新增成員</span></button>' +
+  '<button class="person" data-guest="1">' +
+    '<span class="avatar guest">' + GUEST.emoji + '</span><span>訪客（唯讀）</span></button>';
 }
 
 /* 鐵道線：每一天一個站點。
@@ -1784,6 +1834,7 @@ function cityOptions(){
 }
 
 function openDrawer(sheet, id){
+  if (!canEdit()){ toast('訪客模式不能修改'); return; }
   var row = id ? (DATA[sheet] || []).filter(function(r){ return r.id === id; })[0] : null;
   var isNew = !row;
   if (!row){
@@ -1915,6 +1966,7 @@ function wireFlightLookup(){
 
 /* 行程設定：改標題、起訖日期、兩個城市各住幾天 */
 function openTripDialog(){
+  if (!canEdit()){ toast('訪客模式不能修改'); return; }
   var start = conf('startDate', FALLBACK_START);
   var end   = conf('endDate',   FALLBACK_END);
   var legs  = parseLegs(conf('legs', FALLBACK_LEGS));
@@ -1974,6 +2026,7 @@ var EMOJI_POOL = ['🌲','☕','🚆','🏔','🐟','🌧','📚','🦀','🍁',
 var COLOR_POOL = ['#2D6A4F','#B5651D','#7FA8A0','#C25A47','#D89B3C','#4A6FA5','#8E6C88','#5C7A3E'];
 
 function openMemberDialog(id){
+  if (isGuest()){ toast('訪客模式不能修改'); return; }
   var row = id ? (DATA.members || []).filter(function(r){ return r.id === id; })[0] : null;
   var isNew = !row;
   if (!row){
@@ -2069,6 +2122,7 @@ $('#picker').addEventListener('click', function(e){
     status('off', '尚未設定連線網址');
     return;
   }
+  if (e.target.closest('[data-guest]')){ setMe(GUEST); return; }
   if (e.target.closest('[data-addmember]')){ openMemberDialog(null); return; }
   var btn = e.target.closest('[data-id]');
   if (!btn) return;
@@ -2083,16 +2137,21 @@ function setMe(m){
   try{ localStorage.setItem(ME_KEY, m.id); }catch(e){}
   $('#meEmoji').textContent = m.emoji || '🙂';
   $('#meName').textContent = m.name;
+  // 訪客模式：整個頁面切成唯讀，編輯類的按鈕會被藏起來
+  document.body.classList.toggle('readonly', isGuest());
   $('#gate').classList.add('hide');
   $('#app').classList.add('on');
   renderAll();
+  if (isGuest()) toast('訪客模式：可以看，但不能修改');
 }
 
 $('#meBtn').addEventListener('click', function(){
   try{ localStorage.removeItem(ME_KEY); }catch(e){}
   ME = null;
+  document.body.classList.remove('readonly');
   $('#app').classList.remove('on');
   $('#gate').classList.remove('hide');
+  renderPicker();
 });
 
 $('#tabs').addEventListener('click', function(e){
@@ -2148,6 +2207,12 @@ document.addEventListener('click', function(e){
 
   var ed = e.target.closest('[data-edit]');
   if (ed){ openDrawer(ed.dataset.edit, ed.dataset.id); return; }
+
+  // 訪客：勾選、投票、待辦這幾個不經過抽屜的動作也要擋
+  if (!canEdit() && e.target.closest('[data-tick],[data-todo],[data-vote],[data-add],[data-edit]')){
+    toast('訪客模式不能修改');
+    return;
+  }
 
   var tick = e.target.closest('[data-tick]');
   if (tick){
@@ -2263,7 +2328,9 @@ window.addEventListener('offline', function(){ status('off','離線 — 顯示�
 
   var savedId = null;
   try{ savedId = localStorage.getItem(ME_KEY); }catch(e){}
-  if (savedId){
+  if (savedId === GUEST.id){
+    setMe(GUEST);
+  } else if (savedId){
     var m = (DATA.members || []).filter(function(x){ return x.id === savedId; })[0];
     if (m) setMe(m);
   }
