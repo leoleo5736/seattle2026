@@ -399,9 +399,13 @@ section.on{display:block}
   margin-left:7px;font-size:11.5px;color:var(--moss);
   border-bottom:1px solid rgba(45,106,79,.3);text-decoration:none;
 }
+/* 備註保留使用者打的換行與空行。
+   用 pre-line 而不是把 \n 換成 <br>，因為 pre-line 會順便
+   把多餘空白收乾淨，也不必擔心 HTML 注入。 */
 .c-note{
-  font-size:12.5px;color:rgba(22,48,43,.68);margin-top:5px;
-  padding-left:9px;border-left:2px solid var(--line);
+  font-size:12.5px;line-height:1.75;color:rgba(22,48,43,.68);margin-top:7px;
+  padding-left:10px;border-left:2px solid var(--line);
+  white-space:pre-line;
 }
 .stamp{font-size:10.5px;color:rgba(22,48,43,.34);margin-top:6px}
 .c-acts{display:flex;gap:4px;flex:0 0 auto}
@@ -661,7 +665,10 @@ section.on{display:block}
 }
 .todo.ok .tbox{background:var(--moss);border-color:var(--moss);color:var(--paper)}
 .t-title{font-size:14px;line-height:1.5}
-.t-detail{font-size:12.5px;color:rgba(22,48,43,.62);margin-top:4px}
+.t-detail{
+  font-size:12.5px;line-height:1.75;color:rgba(22,48,43,.62);margin-top:4px;
+  white-space:pre-line;
+}
 .t-owner{
   display:inline-block;font-size:10.5px;letter-spacing:.08em;
   color:var(--moss);margin-top:5px;
@@ -1745,7 +1752,7 @@ function stayCard(r){
       (r.pros ? '<span class="chipx good">＋ ' + esc(r.pros) + '</span>' : '') +
       (r.cons ? '<span class="chipx bad">− ' + esc(r.cons) + '</span>' : '') +
     '</div>' : '') +
-    (r.note ? '<p class="p-note">' + esc(r.note).replace(/\n/g,'<br>') + '</p>' : '') +
+    (r.note ? '<p class="p-note">' + esc(r.note) + '</p>' : '') +
     '<div class="p-foot">' +
       '<span class="votes">' + starPick +
         (total ? '<span class="rtot">' + total + ' 分</span>' : '') +
@@ -1779,11 +1786,11 @@ function renderFlights(){
             '<span class="t"><b>' + esc(arr || '—') + '</b><u>抵達</u></span>' +
           '</div>'
         : '') +
-      ((r.stops || (r.duration && !dep && !arr) || r.note) ? '<div class="p-meta">' +
+      ((r.stops || (r.duration && !dep && !arr)) ? '<div class="p-meta">' +
         (r.stops ? '<span class="chipx">' + esc(r.stops) + '</span>' : '') +
         (r.duration && !dep && !arr ? '<span class="chipx">⏱ ' + esc(r.duration) + '</span>' : '') +
-        (r.note ? '<span class="chipx">' + esc(r.note) + '</span>' : '') +
       '</div>' : '') +
+      (r.note ? '<p class="p-note">' + esc(r.note) + '</p>' : '') +
       '<div class="p-foot">' +
         '<span class="votes">' + (r.updatedBy ? esc(r.updatedBy) + ' 更新' : '&nbsp;') + '</span>' +
         '<span style="display:flex;gap:8px;align-items:center">' +
@@ -1805,11 +1812,11 @@ function renderTrains(){
         '<div class="p-price">' + (price ? money(price) : '—') +
           '<small>' + esc(r.seat || '單程') + '</small></div>' +
       '</div>' +
-      ((r.depart || r.arrive || r.note) ? '<div class="p-meta">' +
+      ((r.depart || r.arrive) ? '<div class="p-meta">' +
         (r.depart ? '<span class="chipx">發 ' + esc(r.depart) + '</span>' : '') +
         (r.arrive ? '<span class="chipx">到 ' + esc(r.arrive) + '</span>' : '') +
-        (r.note ? '<span class="chipx">' + esc(r.note) + '</span>' : '') +
       '</div>' : '') +
+      (r.note ? '<p class="p-note">' + esc(r.note) + '</p>' : '') +
       '<div class="p-foot">' +
         '<span class="votes">' + (r.updatedBy ? esc(r.updatedBy) + ' 更新' : '&nbsp;') + '</span>' +
         '<span style="display:flex;gap:8px;align-items:center">' +
