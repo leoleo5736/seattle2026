@@ -190,6 +190,8 @@ a{color:inherit}
 body.readonly .addrow,
 body.readonly .ibtn,
 body.readonly .st,
+body.readonly .grip,
+body.readonly .daytools,
 body.readonly #strayWarn button{ display:none!important; }
 body.readonly .p-foot{ justify-content:flex-start }
 .robadge{
@@ -387,6 +389,42 @@ section.on{display:block}
 .card.done{opacity:.5}
 .card.done .c-title{text-decoration:line-through}
 .c-top{display:flex;gap:12px;align-items:flex-start}
+
+/* 拖拉握把 */
+.grip{
+  flex:0 0 auto;width:26px;margin-left:-6px;
+  align-self:stretch;min-height:34px;
+  color:rgba(22,48,43,.26);font-size:15px;line-height:1;
+  cursor:grab;touch-action:none;      /* 關鍵：讓觸控事件交給程式處理 */
+  border-radius:var(--r);
+}
+.grip:hover{color:var(--moss);background:var(--fog)}
+.grip:active{cursor:grabbing}
+.card.dragging{
+  box-shadow:0 10px 30px rgba(22,48,43,.22);
+  opacity:.95;transform:scale(1.015);
+}
+@media(prefers-reduced-motion:reduce){
+  .card.dragging{transform:none}
+}
+.placeholder{
+  border:1.5px dashed var(--glacier);border-radius:var(--r);
+  background:rgba(127,168,160,.08);margin-bottom:9px;
+}
+/* 拖拉中禁止選取文字，免得整頁反白 */
+body.dragging-now{user-select:none;-webkit-user-select:none}
+
+/* 排序工具列 */
+.daytools{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin-bottom:11px;
+}
+.minibtn{
+  font-size:12px;letter-spacing:.04em;padding:5px 12px;
+  border:1px solid var(--line);border-radius:999px;color:var(--moss);
+}
+.minibtn:hover{background:var(--fog2);border-color:var(--moss)}
+.draghint{font-size:11px;color:rgba(22,48,43,.4)}
 .c-time{
   flex:0 0 52px;font-family:var(--display);
   font-size:12px;letter-spacing:.06em;color:var(--moss);
@@ -870,6 +908,7 @@ section.on{display:block}
         <span class="daytag" id="dayTag">—</span>
       </div>
       <div class="warn" id="strayWarn" style="display:none"></div>
+      <div class="daytools" id="dayTools" style="display:none"></div>
       <div id="dayList"></div>
       <button class="addrow" data-add="days">＋ 加一個行程</button>
     </section>
@@ -1505,11 +1544,27 @@ function renderDays(){
     warn.style.display = 'none';
   }
 
-  $('#dayList').innerHTML = rows.length ? rows.map(function(r){
+  // 排序工具列：只有兩筆以上、而且不是訪客才有意義
+  var tools = $('#dayTools');
+  if (rows.length > 1 && canEdit()){
+    tools.innerHTML =
+      '<button class="minibtn" id="autoSort">⇅ 依時間排序</button>' +
+      '<span class="draghint">長按左側 ⠿ 可拖拉換位置</span>';
+    tools.style.display = '';
+  } else {
+    tools.style.display = 'none';
+  }
+
+  $('#dayList').innerHTML = rows.length ? rows.map(function(r, idx){
     var done = String(r.done) === 'true' || r.done === true;
     return '<article class="card' + (done ? ' done' : '') + '"' +
+      ' data-row="' + esc(r.id) + '"' +
       ' style="border-left-color:' + cityColor(city) + '">' +
       '<div class="c-top">' +
+        (canEdit()
+          ? '<button class="grip" data-grip="' + esc(r.id) + '"' +
+            ' aria-label="拖拉換位置，或用鍵盤上下鍵移動" title="拖拉換位置">⠿</button>'
+          : '') +
         '<div class="c-time">' + esc(r.time || '') + '</div>' +
         '<div class="c-body">' +
           '<p class="c-title">' + esc(r.title) + '</p>' +
@@ -1528,6 +1583,194 @@ function renderDays(){
         '</div>' +
       '</div></article>';
   }).join('') : '<p class="empty">這天還沒有安排，按下面加一個。</p>';
+}
+
+/* ============================================================
+   拖拉排序
+   ------------------------------------------------------------
+   用 Pointer Events，滑鼠與觸控走同一套程式。
+   只有按住左側的握把才會啟動，這樣在手機上滑動卡片本身
+   仍然是正常捲動頁面，不會一滑就把卡片拖走。
+   ============================================================ */
+var drag = null;
+
+function dayRowsInOrder(){
+  return (DATA.days || [])
+    .filter(function(r){ return normDate(r.date) === activeDay; })
+    .sort(function(a,b){ return n(a.sort) - n(b.sort); });
+}
+
+/* 把新順序寫回去。只送出 sort 真的變了的列，
+   減少傳輸量也降低跟別人同時編輯時互相覆蓋的機會。 */
+function applyOrder(ids){
+  var changed = [];
+  var stamp = new Date().toISOString().slice(0,19);
+  // 用當天最小的 sort 當基準往上編號，不去動其他天的資料
+  var base = 10;
+  ids.forEach(function(id, i){
+    var row = (DATA.days || []).filter(function(r){ return r.id === id; })[0];
+    if (!row) return;
+    var want = base + i * 10;
+    if (n(row.sort) !== want){
+      row.sort = want;
+      row.updatedBy = ME ? ME.name : '';
+      row.updatedAt = stamp;
+      changed.push(row);
+    }
+  });
+  if (!changed.length) return false;
+  saveCache();
+  renderSheet('days');
+  push({ action:'save', sheet:'days', rows:changed, actor: ME ? ME.name : '' });
+  return true;
+}
+
+function startDrag(e, id){
+  if (!canEdit()) return;
+  var list = $('#dayList');
+  var card = list.querySelector('[data-row="' + cssEsc(id) + '"]');
+  if (!card) return;
+
+  e.preventDefault();
+
+  drag = {
+    id: id,
+    card: card,
+    list: list,
+    startY: e.clientY,
+    // 記住按住的點在卡片內的相對位置，拖的時候才不會跳一下
+    offsetY: e.clientY - card.getBoundingClientRect().top,
+    moved: false,
+    autoScroll: 0
+  };
+
+  card.classList.add('dragging');
+  document.body.classList.add('dragging-now');
+
+  // 佔位用的虛線框
+  var ph = document.createElement('div');
+  ph.className = 'placeholder';
+  ph.style.height = card.offsetHeight + 'px';
+  card.parentNode.insertBefore(ph, card.nextSibling);
+  drag.ph = ph;
+
+  // 讓卡片浮起來跟著手指走
+  card.style.width = card.offsetWidth + 'px';
+  card.style.position = 'fixed';
+  card.style.zIndex = '80';
+  card.style.pointerEvents = 'none';
+  moveDrag(e);
+
+  try{ e.target.setPointerCapture(e.pointerId); }catch(err){}
+  if (navigator.vibrate) { try{ navigator.vibrate(12); }catch(err){} }
+}
+
+function moveDrag(e){
+  if (!drag) return;
+  if (Math.abs(e.clientY - drag.startY) > 3) drag.moved = true;
+
+  drag.card.style.top = (e.clientY - drag.offsetY) + 'px';
+
+  // 靠近視窗上下緣時自動捲動，長清單才拖得到底
+  var margin = 90;
+  if (e.clientY < margin) drag.autoScroll = -(margin - e.clientY) / 6;
+  else if (e.clientY > window.innerHeight - margin) drag.autoScroll = (e.clientY - (window.innerHeight - margin)) / 6;
+  else drag.autoScroll = 0;
+
+  // 找出佔位框該插在哪裡
+  var cards = Array.prototype.filter.call(
+    drag.list.children,
+    function(el){ return el !== drag.card && el !== drag.ph && el.classList.contains('card'); }
+  );
+  var placed = false;
+  for (var i = 0; i < cards.length; i++){
+    var box = cards[i].getBoundingClientRect();
+    if (e.clientY < box.top + box.height / 2){
+      drag.list.insertBefore(drag.ph, cards[i]);
+      placed = true;
+      break;
+    }
+  }
+  if (!placed) drag.list.appendChild(drag.ph);
+}
+
+function tickAutoScroll(){
+  if (drag && drag.autoScroll) window.scrollBy(0, drag.autoScroll);
+  requestAnimationFrame(tickAutoScroll);
+}
+requestAnimationFrame(tickAutoScroll);
+
+function endDrag(){
+  if (!drag) return;
+  var d = drag;
+  drag = null;
+
+  d.card.classList.remove('dragging');
+  document.body.classList.remove('dragging-now');
+  d.card.style.cssText = '';
+
+  // 把卡片放到佔位框的位置，算出新順序
+  if (d.ph && d.ph.parentNode){
+    d.ph.parentNode.insertBefore(d.card, d.ph);
+    d.ph.parentNode.removeChild(d.ph);
+  }
+
+  if (!d.moved){ renderDays(); return; }
+
+  var ids = Array.prototype.map.call(
+    d.list.querySelectorAll('.card'),
+    function(el){ return el.dataset.row; }
+  );
+  if (applyOrder(ids)) toast('順序已更新');
+  else renderDays();
+}
+
+/* querySelector 用的簡易跳脫（id 是 UUID 或 local-xxx，不會有奇怪字元，
+   但還是保險一點） */
+function cssEsc(v){
+  return String(v).replace(/["\\]/g, '\\$&');
+}
+
+/* ============================================================
+   依時間自動排序
+   ------------------------------------------------------------
+   看得懂 07:30、7:30、上午、中午、下午、傍晚、晚上、深夜。
+   認不出來的維持原本的相對順序，排在同時段後面。
+   ============================================================ */
+var TIME_WORDS = [
+  [/凌晨|深夜|半夜/, 3],
+  [/一早|清晨|早上|上午|早/, 9],
+  [/中午|午餐/, 12],
+  [/下午|午後/, 14],
+  [/傍晚|黃昏/, 17.5],
+  [/晚上|晚餐|夜間|夜/, 19],
+  [/整天|全天|一整天/, 8],
+  [/備註|其他/, 99]
+];
+
+function timeValue(v){
+  var s = String(v || '').trim();
+  if (!s) return 50;                       // 空的排中間，不要衝到最前面
+  var m = s.match(/(\d{1,2})\s*[:：]\s*(\d{2})/);
+  if (m) return parseInt(m[1],10) + parseInt(m[2],10) / 60;
+  m = s.match(/^(\d{1,2})\s*點/);           // 「8點」
+  if (m) return parseInt(m[1],10);
+  for (var i = 0; i < TIME_WORDS.length; i++){
+    if (TIME_WORDS[i][0].test(s)) return TIME_WORDS[i][1];
+  }
+  return 50;
+}
+
+function autoSortDay(){
+  var rows = dayRowsInOrder();
+  if (rows.length < 2) return;
+  var sorted = rows.map(function(r, i){ return { r:r, i:i, t:timeValue(r.time) }; })
+    .sort(function(a,b){ return a.t - b.t || a.i - b.i; })
+    .map(function(x){ return x.r.id; });
+
+  var same = sorted.every(function(id, i){ return rows[i].id === id; });
+  if (same){ toast('已經是依時間的順序了'); return; }
+  if (applyOrder(sorted)) toast('已依時間重新排序');
 }
 
 var activeCity = '';
@@ -2002,6 +2245,8 @@ function openDrawer(sheet, id){
     }
     if (sheet === 'todos') row.status = '待確認';
     row.sort = ((DATA[sheet] || []).length + 1) * 10;
+    // 行程：先記住這是新的，存檔時再依時間插到正確位置
+    if (sheet === 'days') row.__isNew = true;
   }
   editing = { sheet:sheet, row:JSON.parse(JSON.stringify(row)), isNew:isNew };
 
@@ -2340,6 +2585,43 @@ $('#cityTabs').addEventListener('click', function(e){
   window.scrollTo({ top:0, behavior:'smooth' });
 });
 
+/* 拖拉：滑鼠與觸控共用 Pointer Events */
+$('#dayList').addEventListener('pointerdown', function(e){
+  var g = e.target.closest('[data-grip]');
+  if (!g) return;
+  if (e.button != null && e.button !== 0) return;   // 只認左鍵
+  startDrag(e, g.dataset.grip);
+});
+window.addEventListener('pointermove', function(e){
+  if (drag) { e.preventDefault(); moveDrag(e); }
+}, { passive:false });
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+
+/* 鍵盤替代方案：握把上按上下鍵就能移動，不用滑鼠也能排 */
+$('#dayList').addEventListener('keydown', function(e){
+  var g = e.target.closest('[data-grip]');
+  if (!g) return;
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  e.preventDefault();
+  var ids = dayRowsInOrder().map(function(r){ return r.id; });
+  var i = ids.indexOf(g.dataset.grip);
+  var j = e.key === 'ArrowUp' ? i - 1 : i + 1;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  ids.splice(j, 0, ids.splice(i, 1)[0]);
+  if (applyOrder(ids)){
+    // 重畫之後把焦點放回同一個握把，才能連續按
+    setTimeout(function(){
+      var el = $('#dayList').querySelector('[data-grip="' + cssEsc(g.dataset.grip) + '"]');
+      if (el) el.focus();
+    }, 0);
+  }
+});
+
+$('#dayTools').addEventListener('click', function(e){
+  if (e.target.closest('#autoSort')) autoSortDay();
+});
+
 $('#rail').addEventListener('click', function(e){
   var s = e.target.closest('[data-day]');
   if (!s) return;
@@ -2462,11 +2744,46 @@ $('#saveBtn').addEventListener('click', function(){
     return;
   }
   var wasNewMember = (editing.sheet === 'members') && editing.isNew;
+  var newDay = row.__isNew;
+  delete row.__isNew;
+
   saveRow(editing.sheet, row);
   closeDrawer();
-  toast('已儲存');
+
+  // 新增的行程如果有填時間，就依時間插到當天的正確位置，
+  // 不要每次都掉到最後面讓你再拖一次
+  if (newDay && String(row.time || '').trim()){
+    var placed = insertByTime(row.id);
+    toast(placed ? '已依時間插入' : '已儲存');
+  } else {
+    toast('已儲存');
+  }
+
   if (wasNewMember && !ME) setMe(row);
 });
+
+/* 把某一筆行程依時間挪到當天的正確位置。
+   只動這一筆的位置，其他卡片的相對順序完全不變——
+   所以你先前手動拖好的順序不會被打亂。 */
+function insertByTime(id){
+  var rows = dayRowsInOrder();
+  if (rows.length < 2) return false;
+
+  var me = rows.filter(function(r){ return r.id === id; })[0];
+  if (!me) return false;
+  var t = timeValue(me.time);
+  if (t === 50) return false;              // 看不懂的時間就不動它
+
+  var others = rows.filter(function(r){ return r.id !== id; });
+  // 找第一個「時間比我晚」的卡片，插在它前面
+  var at = others.length;
+  for (var i = 0; i < others.length; i++){
+    if (timeValue(others[i].time) > t){ at = i; break; }
+  }
+  var ids = others.map(function(r){ return r.id; });
+  ids.splice(at, 0, id);
+  return applyOrder(ids);
+}
 
 $('#cancelBtn').addEventListener('click', closeDrawer);
 $('#scrim').addEventListener('click', closeDrawer);
