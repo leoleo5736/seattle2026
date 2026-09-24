@@ -400,6 +400,12 @@ section.on{display:block}
 }
 .grip:hover{color:var(--moss);background:var(--fog)}
 .grip:active{cursor:grabbing}
+/* 待辦的握把比較矮，配合單行高度 */
+.tgrip{align-self:center;min-height:26px;margin-left:-4px;width:22px}
+.todo.dragging{
+  box-shadow:0 10px 30px rgba(22,48,43,.22);
+  opacity:.95;
+}
 .card.dragging{
   box-shadow:0 10px 30px rgba(22,48,43,.22);
   opacity:.95;transform:scale(1.015);
@@ -688,6 +694,64 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
   font-weight:500;font-variant-numeric:tabular-nums;
 }
 
+/* 待辦：進度、搜尋、篩選 */
+.progress{display:flex;align-items:center;gap:11px;margin-bottom:13px}
+.progress:empty{display:none}
+.pgbar{
+  flex:1;height:6px;border-radius:99px;
+  background:rgba(22,48,43,.09);overflow:hidden;
+}
+.pgbar span{
+  display:block;height:100%;border-radius:99px;
+  background:var(--moss);
+  transition:width .45s cubic-bezier(.32,.72,0,1);
+}
+.pgtxt{
+  flex:0 0 auto;font-size:11.5px;color:rgba(22,48,43,.55);
+  letter-spacing:.04em;
+}
+.pgtxt b{font-family:var(--display);font-size:14px;color:var(--fir)}
+
+.searchbar{
+  display:flex;align-items:center;gap:8px;
+  background:var(--paper);border:1px solid var(--line);
+  border-radius:999px;padding:0 13px;margin-bottom:10px;
+  transition:border-color .16s;
+}
+.searchbar:focus-within{border-color:var(--moss)}
+.searchbar .sicon{font-size:13px;opacity:.45;flex:0 0 auto}
+.searchbar input{
+  flex:1;border:none;background:none;padding:10px 0;
+  font-size:14px;color:var(--fir);min-width:0;
+}
+.searchbar input:focus{outline:none}
+.searchbar input::-webkit-search-cancel-button{display:none}
+#todoClear{
+  flex:0 0 auto;width:22px;height:22px;border-radius:50%;
+  font-size:11px;color:rgba(22,48,43,.5);
+  background:rgba(22,48,43,.07);
+}
+#todoClear:hover{background:rgba(22,48,43,.14);color:var(--fir)}
+
+.filters{display:flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.ftab{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 13px;border-radius:999px;font-size:12.5px;
+  border:1px solid var(--line);color:rgba(22,48,43,.62);
+}
+.ftab b{
+  font-weight:400;font-size:11px;
+  padding:1px 6px;border-radius:999px;
+  background:rgba(22,48,43,.07);
+}
+.ftab.on{background:var(--fir);color:var(--fog2);border-color:var(--fir)}
+.ftab.on b{background:rgba(255,255,255,.16)}
+
+mark{
+  background:rgba(216,155,60,.32);color:inherit;
+  border-radius:2px;padding:0 1px;
+}
+
 /* 待辦 */
 .todo{
   display:flex;gap:11px;align-items:flex-start;
@@ -948,6 +1012,23 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
     <!-- 待辦 -->
     <section id="s-todos">
       <div class="shead"><h2>待確認事項</h2><p>出發前要處理完的事</p></div>
+
+      <div class="progress" id="todoProgress"></div>
+
+      <div class="searchbar">
+        <span class="sicon">🔍</span>
+        <input type="search" id="todoSearch" placeholder="搜尋事項、細節、負責人…"
+               autocomplete="off" aria-label="搜尋待辦事項">
+        <button type="button" id="todoClear" style="display:none" aria-label="清除搜尋">✕</button>
+      </div>
+
+      <div class="filters" id="todoFilters">
+        <button class="ftab on" data-filter="all">全部 <b id="fAll">0</b></button>
+        <button class="ftab" data-filter="open">未完成 <b id="fOpen">0</b></button>
+        <button class="ftab" data-filter="done">已完成 <b id="fDone">0</b></button>
+        <span class="draghint" id="todoHint"></span>
+      </div>
+
       <div id="todoList"></div>
       <button class="addrow" data-add="todos">＋ 加一件待辦</button>
     </section>
@@ -1601,14 +1682,15 @@ function dayRowsInOrder(){
 }
 
 /* 把新順序寫回去。只送出 sort 真的變了的列，
-   減少傳輸量也降低跟別人同時編輯時互相覆蓋的機會。 */
-function applyOrder(ids){
+   減少傳輸量也降低跟別人同時編輯時互相覆蓋的機會。
+   sheet 預設是 days，待辦也用同一套。 */
+function applyOrder(ids, sheet){
+  sheet = sheet || 'days';
   var changed = [];
   var stamp = new Date().toISOString().slice(0,19);
-  // 用當天最小的 sort 當基準往上編號，不去動其他天的資料
   var base = 10;
   ids.forEach(function(id, i){
-    var row = (DATA.days || []).filter(function(r){ return r.id === id; })[0];
+    var row = (DATA[sheet] || []).filter(function(r){ return r.id === id; })[0];
     if (!row) return;
     var want = base + i * 10;
     if (n(row.sort) !== want){
@@ -1620,14 +1702,14 @@ function applyOrder(ids){
   });
   if (!changed.length) return false;
   saveCache();
-  renderSheet('days');
-  push({ action:'save', sheet:'days', rows:changed, actor: ME ? ME.name : '' });
+  renderSheet(sheet);
+  push({ action:'save', sheet:sheet, rows:changed, actor: ME ? ME.name : '' });
   return true;
 }
 
-function startDrag(e, id){
+function startDrag(e, id, listEl, sheet){
   if (!canEdit()) return;
-  var list = $('#dayList');
+  var list = listEl || $('#dayList');
   var card = list.querySelector('[data-row="' + cssEsc(id) + '"]');
   if (!card) return;
 
@@ -1637,6 +1719,8 @@ function startDrag(e, id){
     id: id,
     card: card,
     list: list,
+    sheet: sheet || 'days',
+    itemSel: list.id === 'todoList' ? '.todo' : '.card',
     startY: e.clientY,
     // 記住按住的點在卡片內的相對位置，拖的時候才不會跳一下
     offsetY: e.clientY - card.getBoundingClientRect().top,
@@ -1678,9 +1762,10 @@ function moveDrag(e){
   else drag.autoScroll = 0;
 
   // 找出佔位框該插在哪裡
+  var cls = drag.itemSel.slice(1);
   var cards = Array.prototype.filter.call(
     drag.list.children,
-    function(el){ return el !== drag.card && el !== drag.ph && el.classList.contains('card'); }
+    function(el){ return el !== drag.card && el !== drag.ph && el.classList.contains(cls); }
   );
   var placed = false;
   for (var i = 0; i < cards.length; i++){
@@ -1715,14 +1800,14 @@ function endDrag(){
     d.ph.parentNode.removeChild(d.ph);
   }
 
-  if (!d.moved){ renderDays(); return; }
+  if (!d.moved){ renderSheet(d.sheet); return; }
 
   var ids = Array.prototype.map.call(
-    d.list.querySelectorAll('.card'),
+    d.list.querySelectorAll(d.itemSel + '[data-row]'),
     function(el){ return el.dataset.row; }
   );
-  if (applyOrder(ids)) toast('順序已更新');
-  else renderDays();
+  if (applyOrder(ids, d.sheet)) toast('順序已更新');
+  else renderSheet(d.sheet);
 }
 
 /* querySelector 用的簡易跳脫（id 是 UUID 或 local-xxx，不會有奇怪字元，
@@ -2070,20 +2155,98 @@ function renderTrains(){
   }).join('') : '<p class="empty">還沒有火車票資料。</p>';
 }
 
+var todoQuery = '';
+var todoFilter = 'all';   // all | open | done
+
+function isTodoDone(t){ return String(t.status) === '已確認'; }
+
+/* 排序：未完成的永遠在上面，已完成的沉到底部，
+   各自內部維持 sort 的順序 */
+function todosInOrder(){
+  return (DATA.todos || []).slice().sort(function(a,b){
+    var ad = isTodoDone(a) ? 1 : 0, bd = isTodoDone(b) ? 1 : 0;
+    if (ad !== bd) return ad - bd;
+    return n(a.sort) - n(b.sort);
+  });
+}
+
+/* 關鍵字比對：標題、細節、負責人都找 */
+function todoMatches(t, q){
+  if (!q) return true;
+  return (String(t.title || '') + ' ' + String(t.detail || '') + ' ' +
+          String(t.owner || '')).toLowerCase().indexOf(q) > -1;
+}
+
+/* 把關鍵字在文字裡標起來 */
+function mark(text, q){
+  var safe = esc(text);
+  if (!q) return safe;
+  var qq = esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try{
+    return safe.replace(new RegExp(qq, 'gi'), function(m){ return '<mark>' + m + '</mark>'; });
+  }catch(e){ return safe; }
+}
+
 function renderTodos(){
-  var rows = (DATA.todos || []).slice().sort(function(a,b){ return n(a.sort) - n(b.sort); });
-  $('#todoList').innerHTML = rows.length ? rows.map(function(t){
-    var ok = String(t.status) === '已確認';
-    return '<div class="todo' + (ok ? ' ok' : '') + '">' +
+  var all = todosInOrder();
+  var doneCount = all.filter(isTodoDone).length;
+  var q = todoQuery.trim().toLowerCase();
+
+  var rows = all.filter(function(t){
+    if (todoFilter === 'open' && isTodoDone(t)) return false;
+    if (todoFilter === 'done' && !isTodoDone(t)) return false;
+    return todoMatches(t, q);
+  });
+
+  // 進度條
+  var pct = all.length ? Math.round(doneCount / all.length * 100) : 0;
+  $('#todoProgress').innerHTML = all.length
+    ? '<div class="pgbar"><span style="width:' + pct + '%"></span></div>' +
+      '<span class="pgtxt">已完成 <b>' + doneCount + '</b> / ' + all.length + '</span>'
+    : '';
+
+  // 篩選按鈕上的數字
+  $('#fAll').textContent = all.length;
+  $('#fOpen').textContent = all.length - doneCount;
+  $('#fDone').textContent = doneCount;
+  Array.prototype.forEach.call(document.querySelectorAll('#todoFilters .ftab'), function(b){
+    b.classList.toggle('on', b.dataset.filter === todoFilter);
+  });
+  $('#todoClear').style.display = todoQuery ? '' : 'none';
+
+  // 搜尋或篩選時不能拖拉——畫面上看到的不是完整清單，
+  // 這時候重新編號會把沒顯示的那幾筆順序弄亂
+  var sortable = canEdit() && !q && todoFilter === 'all';
+  $('#todoHint').textContent = sortable
+    ? (all.length > 1 ? '可拖拉 ⠿ 調整順序' : '')
+    : (canEdit() && all.length > 1 ? '搜尋或篩選時無法拖拉' : '');
+
+  if (!rows.length){
+    $('#todoList').innerHTML = '<p class="empty">' +
+      (all.length
+        ? (q ? '找不到符合「' + esc(todoQuery) + '」的事項。'
+             : (todoFilter === 'open' ? '太好了，全部都完成了。' : '還沒有完成的事項。'))
+        : '沒有待辦事項。') +
+      '</p>';
+    return;
+  }
+
+  $('#todoList').innerHTML = rows.map(function(t){
+    var ok = isTodoDone(t);
+    return '<div class="todo' + (ok ? ' ok' : '') + '" data-row="' + esc(t.id) + '">' +
+      (sortable
+        ? '<button class="grip tgrip" data-grip="' + esc(t.id) + '" data-sheet="todos"' +
+          ' aria-label="拖拉換位置，或用鍵盤上下鍵移動">⠿</button>'
+        : '') +
       '<button class="tbox" data-todo="' + esc(t.id) + '" aria-label="切換狀態">✓</button>' +
       '<div style="flex:1;min-width:0">' +
-        '<p class="t-title">' + esc(t.title) + '</p>' +
-        (t.detail ? '<p class="t-detail">' + esc(t.detail) + '</p>' : '') +
-        (t.owner ? '<span class="t-owner">負責：' + esc(t.owner) + '</span>' : '') +
+        '<p class="t-title">' + mark(t.title, q) + '</p>' +
+        (t.detail ? '<p class="t-detail">' + mark(t.detail, q) + '</p>' : '') +
+        (t.owner ? '<span class="t-owner">負責：' + mark(t.owner, q) + '</span>' : '') +
       '</div>' +
       '<button class="ibtn" data-edit="todos" data-id="' + esc(t.id) + '" aria-label="編輯">✎</button>' +
     '</div>';
-  }).join('') : '<p class="empty">沒有待辦事項。</p>';
+  }).join('');
 }
 
 function renderBudget(){
@@ -2585,13 +2748,37 @@ $('#cityTabs').addEventListener('click', function(e){
   window.scrollTo({ top:0, behavior:'smooth' });
 });
 
-/* 拖拉：滑鼠與觸控共用 Pointer Events */
-$('#dayList').addEventListener('pointerdown', function(e){
+/* 待辦：搜尋與篩選 */
+$('#todoSearch').addEventListener('input', function(){
+  todoQuery = this.value;
+  renderTodos();
+});
+$('#todoSearch').addEventListener('keydown', function(e){
+  if (e.key === 'Escape'){ this.value = ''; todoQuery = ''; renderTodos(); }
+});
+$('#todoClear').addEventListener('click', function(){
+  todoQuery = '';
+  $('#todoSearch').value = '';
+  $('#todoSearch').focus();
+  renderTodos();
+});
+$('#todoFilters').addEventListener('click', function(e){
+  var b = e.target.closest('[data-filter]');
+  if (!b) return;
+  todoFilter = b.dataset.filter;
+  renderTodos();
+});
+
+/* 拖拉：滑鼠與觸控共用 Pointer Events。行程與待辦共用同一套 */
+function onGripDown(e){
   var g = e.target.closest('[data-grip]');
   if (!g) return;
   if (e.button != null && e.button !== 0) return;   // 只認左鍵
-  startDrag(e, g.dataset.grip);
-});
+  var sheet = g.dataset.sheet || 'days';
+  startDrag(e, g.dataset.grip, this, sheet);
+}
+$('#dayList').addEventListener('pointerdown', onGripDown);
+$('#todoList').addEventListener('pointerdown', onGripDown);
 window.addEventListener('pointermove', function(e){
   if (drag) { e.preventDefault(); moveDrag(e); }
 }, { passive:false });
@@ -2599,24 +2786,33 @@ window.addEventListener('pointerup', endDrag);
 window.addEventListener('pointercancel', endDrag);
 
 /* 鍵盤替代方案：握把上按上下鍵就能移動，不用滑鼠也能排 */
-$('#dayList').addEventListener('keydown', function(e){
+function onGripKey(e){
   var g = e.target.closest('[data-grip]');
   if (!g) return;
   if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
   e.preventDefault();
-  var ids = dayRowsInOrder().map(function(r){ return r.id; });
+
+  var sheet = g.dataset.sheet || 'days';
+  var ids = (sheet === 'todos' ? todosInOrder() : dayRowsInOrder())
+    .map(function(r){ return r.id; });
+
   var i = ids.indexOf(g.dataset.grip);
   var j = e.key === 'ArrowUp' ? i - 1 : i + 1;
   if (i < 0 || j < 0 || j >= ids.length) return;
   ids.splice(j, 0, ids.splice(i, 1)[0]);
-  if (applyOrder(ids)){
+
+  var listId = this.id;
+  if (applyOrder(ids, sheet)){
     // 重畫之後把焦點放回同一個握把，才能連續按
     setTimeout(function(){
-      var el = $('#dayList').querySelector('[data-grip="' + cssEsc(g.dataset.grip) + '"]');
+      var el = document.getElementById(listId)
+        .querySelector('[data-grip="' + cssEsc(g.dataset.grip) + '"]');
       if (el) el.focus();
     }, 0);
   }
-});
+}
+$('#dayList').addEventListener('keydown', onGripKey);
+$('#todoList').addEventListener('keydown', onGripKey);
 
 $('#dayTools').addEventListener('click', function(e){
   if (e.target.closest('#autoSort')) autoSortDay();
