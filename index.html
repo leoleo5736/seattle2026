@@ -192,6 +192,8 @@ body.readonly .ibtn,
 body.readonly .st,
 body.readonly .grip,
 body.readonly .daytools,
+body.readonly .quickadd,
+body.readonly #rateHint,
 body.readonly #strayWarn button{ display:none!important; }
 body.readonly .p-foot{ justify-content:flex-start }
 .robadge{
@@ -694,6 +696,84 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
   font-weight:500;font-variant-numeric:tabular-nums;
 }
 
+/* ── 記帳 ── */
+.paidlist{margin-top:14px;padding-top:13px;border-top:1px solid rgba(127,168,160,.2)}
+.paidrow{
+  display:flex;align-items:center;gap:10px;
+  font-size:12.5px;padding:4px 0;
+}
+.paidrow .pn{flex:0 0 auto;color:var(--fog2)}
+.paidrow .pv{flex:1;color:rgba(238,242,240,.5);font-size:11.5px}
+.paidrow .pd{flex:0 0 auto;font-family:var(--display);font-size:12.5px;color:rgba(238,242,240,.45)}
+.paidrow .pd.up{color:var(--glacier)}
+.paidrow .pd.down{color:var(--amber)}
+.settle{
+  margin-top:12px;padding:11px 13px;border-radius:var(--r);
+  background:rgba(216,155,60,.14);
+  font-size:13px;line-height:1.8;color:var(--amber-lo);
+}
+.settle b{color:var(--fog2);font-weight:500}
+.settle u{
+  text-decoration:none;font-family:var(--display);font-size:15px;
+  color:var(--amber);margin-left:2px;
+}
+.settle.ok{background:rgba(127,168,160,.14);color:var(--glacier)}
+
+.quickadd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.quickadd:empty{display:none}
+.qlabel{font-size:11px;color:rgba(22,48,43,.4);letter-spacing:.1em;margin-right:2px}
+.qbtn{
+  padding:6px 12px;border-radius:999px;font-size:12.5px;
+  border:1px solid var(--line);background:var(--paper);
+  color:rgba(22,48,43,.78);
+}
+.qbtn:hover{background:var(--fog2);transform:translateY(-1px)}
+
+.exprow{
+  display:flex;align-items:center;gap:11px;
+  background:var(--paper);border:1px solid var(--line2);
+  border-radius:var(--r);padding:11px 13px;margin-bottom:8px;
+}
+.ecat{
+  flex:0 0 auto;width:34px;height:34px;border-radius:50%;
+  display:grid;place-items:center;font-size:16px;
+}
+.ebody{flex:1;min-width:0}
+.etitle{font-size:14px;line-height:1.4}
+.emeta{font-size:11px;color:rgba(22,48,43,.5);margin-top:2px}
+.eamt{
+  flex:0 0 auto;text-align:right;
+  font-family:var(--display);font-size:15px;
+  font-variant-numeric:tabular-nums;
+}
+.eamt u{
+  display:block;text-decoration:none;font-size:10.5px;
+  color:rgba(22,48,43,.42);
+}
+
+/* 甜甜圈圖 */
+.chart.pie{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.chart.pie svg{flex:0 0 auto;width:120px;height:120px}
+.pctr{
+  text-anchor:middle;font-family:var(--display);font-size:20px;
+  fill:var(--fir);font-weight:600;
+}
+.pctr2{text-anchor:middle;font-size:9px;fill:rgba(22,48,43,.45);letter-spacing:.1em}
+.legend{flex:1;min-width:150px}
+.lrow{display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0}
+.ldot{flex:0 0 auto;width:9px;height:9px;border-radius:2px}
+.lname{flex:1;color:rgba(22,48,43,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lpct{
+  flex:0 0 auto;font-family:var(--display);font-size:12px;
+  color:var(--fir);min-width:30px;text-align:right;
+}
+.lval{
+  flex:0 0 auto;font-size:11px;color:rgba(22,48,43,.45);
+  min-width:62px;text-align:right;font-variant-numeric:tabular-nums;
+}
+#rateHint{cursor:pointer;border-bottom:1px dotted rgba(22,48,43,.28)}
+#rateHint:hover{color:var(--moss)}
+
 /* 待辦：進度、搜尋、篩選 */
 .progress{display:flex;align-items:center;gap:11px;margin-bottom:13px}
 .progress:empty{display:none}
@@ -960,6 +1040,7 @@ mark{
       <button class="tab" data-tab="flights">機票<b id="cFlights"></b></button>
       <button class="tab" data-tab="trains">火車<b id="cTrains"></b></button>
       <button class="tab" data-tab="todos">待辦<b id="cTodos"></b></button>
+      <button class="tab" data-tab="expenses">記帳<b id="cExp"></b></button>
     </div>
   </header>
 
@@ -993,7 +1074,7 @@ mark{
         <h3>Budget · 概估</h3>
         <div class="sgrid">
           <div><span>最省機票</span><b id="bAir">—</b></div>
-          <div><span>住宿合計</span><b id="bStay">—</b></div>
+          <div><span>最高最低差</span><b id="bStay">—</b></div>
           <div><span>火車來回</span><b id="bTrain">—</b></div>
           <div><span>距離出發</span><b id="bDays">—</b></div>
         </div>
@@ -1031,6 +1112,25 @@ mark{
 
       <div id="todoList"></div>
       <button class="addrow" data-add="todos">＋ 加一件待辦</button>
+    </section>
+
+    <!-- 記帳 -->
+    <section id="s-expenses">
+      <div class="shead"><h2>記帳</h2><p>誰先付的都記下來，最後一次結清</p></div>
+
+      <div class="summary" id="expSummary"></div>
+      <div id="expChart"></div>
+      <div class="quickadd" id="quickAdd"></div>
+
+      <div class="filters" id="expViews">
+        <button class="ftab on" data-view="list">清單</button>
+        <button class="ftab" data-view="byday">依日期</button>
+        <button class="ftab" data-view="bycat">依分類</button>
+        <span class="draghint" id="rateHint"></span>
+      </div>
+
+      <div id="expList"></div>
+      <button class="addrow" data-add="expenses">＋ 記一筆</button>
     </section>
   </main>
 
@@ -1070,7 +1170,7 @@ var CACHE_KEY = 'sea-pdx-data';
 var ME_KEY = 'sea-pdx-me';
 var QUEUE_KEY = 'sea-pdx-queue';
 
-var DATA = { settings:[], members:[], days:[], stays:[], flights:[], trains:[], todos:[] };
+var DATA = { settings:[], members:[], days:[], stays:[], flights:[], trains:[], todos:[], expenses:[] };
 var ME = null;
 
 /* 訪客：唯讀身分。不存在試算表裡，所以不會被誤刪、
@@ -1420,6 +1520,7 @@ function renderAll(){
   renderFlights();
   renderTrains();
   renderTodos();
+  renderExpenses();
   renderCounts();
 }
 
@@ -1431,7 +1532,8 @@ function renderSheet(sheet){
   if (sheet === 'flights') renderFlights();
   if (sheet === 'trains')  renderTrains();
   if (sheet === 'todos')   renderTodos();
-  if (sheet === 'members') renderPicker();
+  if (sheet === 'expenses') renderExpenses();
+  if (sheet === 'members') { renderPicker(); renderExpenses(); }
   renderCounts();
 }
 
@@ -2249,29 +2351,279 @@ function renderTodos(){
   }).join('');
 }
 
+/* ============================================================
+   記帳
+   ------------------------------------------------------------
+   一律平均分攤：每筆都是全員均分，只要記「誰付的」，
+   最後算出誰欠誰多少。兩人同行這樣最省事。
+   ============================================================ */
+var EXP_CATS = [
+  { key:'交通', emoji:'🚇', color:'#4A6FA5' },
+  { key:'住宿', emoji:'🏨', color:'#2D6A4F' },
+  { key:'吃飯', emoji:'🍽', color:'#D89B3C' },
+  { key:'購物', emoji:'🛍', color:'#C25A47' },
+  { key:'門票', emoji:'🎫', color:'#7FA8A0' },
+  { key:'其他', emoji:'📌', color:'#8E6C88' }
+];
+var expView = 'list';
+var quickCat = '';     // 從快速記帳按鈕帶進來的分類
+
+function catInfo(k){
+  var hit = EXP_CATS.filter(function(c){ return c.key === k; })[0];
+  return hit || { key:k || '其他', emoji:'📌', color:'#8E6C88' };
+}
+function usdRate(){
+  var r = parseFloat(conf('usdRate', '32.5'));
+  return (isFinite(r) && r > 0) ? r : 32.5;
+}
+/* 一律換算成台幣再統計 */
+function twd(e){
+  var a = n(e.amount);
+  return String(e.currency).toUpperCase() === 'USD' ? a * usdRate() : a;
+}
+function expsInOrder(){
+  return (DATA.expenses || []).slice().sort(function(a,b){
+    var ad = normDate(a.date), bd = normDate(b.date);
+    if (ad !== bd) return ad < bd ? 1 : -1;   // 新的在前
+    return n(b.sort) - n(a.sort);
+  });
+}
+
+/* 結算：誰付了多少、該付多少、差額 */
+function settle(){
+  var list = DATA.expenses || [];
+  var members = (DATA.members || []).map(function(m){ return m.name; });
+  if (!members.length) members = ['我'];
+
+  var total = 0, paid = {};
+  members.forEach(function(m){ paid[m] = 0; });
+
+  list.forEach(function(e){
+    var v = twd(e);
+    if (!v) return;
+    total += v;
+    var p = String(e.payer || '').trim();
+    if (p in paid) paid[p] += v;
+    else paid[p] = (paid[p] || 0) + v;   // 付款人不在成員名單裡也照算
+  });
+
+  var names = Object.keys(paid);
+  var share = names.length ? total / names.length : 0;
+  var balance = names.map(function(m){
+    return { name:m, paid:paid[m], share:share, diff:paid[m] - share };
+  });
+
+  return { total:total, share:share, balance:balance, count:list.length };
+}
+
+/* 把差額轉成「誰該付誰多少」。
+   兩人的情況只會有一筆，多人時用貪婪法配對。 */
+function transfers(balance){
+  var owe = balance.filter(function(b){ return b.diff < -1; })
+    .map(function(b){ return { name:b.name, v:-b.diff }; })
+    .sort(function(a,b){ return b.v - a.v; });
+  var get = balance.filter(function(b){ return b.diff > 1; })
+    .map(function(b){ return { name:b.name, v:b.diff }; })
+    .sort(function(a,b){ return b.v - a.v; });
+
+  var out = [], i = 0, j = 0, guard = 0;
+  while (i < owe.length && j < get.length && guard++ < 50){
+    var amt = Math.min(owe[i].v, get[j].v);
+    out.push({ from:owe[i].name, to:get[j].name, amount:amt });
+    owe[i].v -= amt; get[j].v -= amt;
+    if (owe[i].v < 1) i++;
+    if (get[j].v < 1) j++;
+  }
+  return out;
+}
+
+function renderExpenses(){
+  var list = expsInOrder();
+  var s = settle();
+
+  $('#cExp').textContent = list.length || '';
+
+  // ── 摘要
+  if (!list.length){
+    $('#expSummary').innerHTML =
+      '<h3>還沒有帳目</h3>' +
+      '<p style="font-size:12.5px;color:rgba(238,242,240,.6);line-height:1.7">' +
+      '出去玩的時候誰先付都沒關係，記下來最後一次結清就好。<br>' +
+      '美元的消費選 USD，會自動換算台幣統計。</p>';
+  } else {
+    var tf = transfers(s.balance);
+    $('#expSummary').innerHTML =
+      '<h3>總計 · ' + s.count + ' 筆</h3>' +
+      '<div class="sgrid">' +
+        '<div><span>總支出</span><b>' + money(s.total) + '</b></div>' +
+        '<div><span>每人均攤</span><b>' + money(s.share) + '</b></div>' +
+      '</div>' +
+      '<div class="paidlist">' +
+        s.balance.map(function(b){
+          var m = (DATA.members || []).filter(function(x){ return x.name === b.name; })[0];
+          var cls = b.diff > 1 ? 'up' : (b.diff < -1 ? 'down' : '');
+          return '<div class="paidrow">' +
+            '<span class="pn">' + esc(m && m.emoji ? m.emoji : '·') + ' ' + esc(b.name) + '</span>' +
+            '<span class="pv">付了 ' + money(b.paid) + '</span>' +
+            '<span class="pd ' + cls + '">' +
+              (b.diff > 1 ? '應收 ' + money(b.diff)
+                : (b.diff < -1 ? '應付 ' + money(-b.diff) : '已平')) +
+            '</span></div>';
+        }).join('') +
+      '</div>' +
+      (tf.length
+        ? '<div class="settle">' + tf.map(function(t){
+            return '<b>' + esc(t.from) + '</b> 給 <b>' + esc(t.to) + '</b> ' +
+              '<u>' + money(t.amount) + '</u>';
+          }).join('<br>') + '</div>'
+        : '<div class="settle ok">帳已經平了 ✓</div>');
+  }
+
+  renderExpChart(list);
+  renderQuickAdd();
+
+  $('#rateHint').textContent = '1 USD = ' + usdRate() + ' TWD';
+
+  // ── 清單
+  if (!list.length){ $('#expList').innerHTML = ''; return; }
+
+  if (expView === 'bycat'){
+    var byCat = {};
+    list.forEach(function(e){
+      var c = String(e.category || '其他').trim() || '其他';
+      (byCat[c] = byCat[c] || []).push(e);
+    });
+    $('#expList').innerHTML = Object.keys(byCat).sort(function(a,b){
+      return sumTwd(byCat[b]) - sumTwd(byCat[a]);
+    }).map(function(c){
+      var ci = catInfo(c);
+      return '<div class="citybar"><b>' + ci.emoji + ' ' + esc(c) + '</b><span></span>' +
+        '<em>' + money(sumTwd(byCat[c])) + '</em></div>' +
+        byCat[c].map(expRow).join('');
+    }).join('');
+  } else if (expView === 'byday'){
+    var byDay = {};
+    list.forEach(function(e){
+      var d = normDate(e.date) || '未填日期';
+      (byDay[d] = byDay[d] || []).push(e);
+    });
+    $('#expList').innerHTML = Object.keys(byDay).sort().reverse().map(function(d){
+      return '<div class="citybar"><b>' +
+        (d === '未填日期' ? d : esc(dateLabel(d))) + '</b><span></span>' +
+        '<em>' + money(sumTwd(byDay[d])) + '</em></div>' +
+        byDay[d].map(expRow).join('');
+    }).join('');
+  } else {
+    $('#expList').innerHTML = list.map(expRow).join('');
+  }
+}
+
+function sumTwd(arr){
+  return arr.reduce(function(a,e){ return a + twd(e); }, 0);
+}
+
+function expRow(e){
+  var ci = catInfo(e.category);
+  var isUsd = String(e.currency).toUpperCase() === 'USD';
+  var m = (DATA.members || []).filter(function(x){ return x.name === e.payer; })[0];
+  return '<div class="exprow">' +
+    '<span class="ecat" style="background:' + ci.color + '22;color:' + ci.color + '">' +
+      ci.emoji + '</span>' +
+    '<div class="ebody">' +
+      '<p class="etitle">' + esc(e.title || ci.key) + '</p>' +
+      '<p class="emeta">' +
+        (e.date ? esc(dateLabel(normDate(e.date))) : '') +
+        (e.payer ? '　·　' + esc(m && m.emoji ? m.emoji : '') + esc(e.payer) + ' 付' : '') +
+        (e.note ? '　·　' + esc(e.note) : '') +
+      '</p>' +
+    '</div>' +
+    '<span class="eamt">' + money(twd(e)) +
+      (isUsd ? '<u>$' + n(e.amount).toLocaleString('en-US') + '</u>' : '') +
+    '</span>' +
+    '<button class="ibtn" data-edit="expenses" data-id="' + esc(e.id) + '" aria-label="編輯">✎</button>' +
+  '</div>';
+}
+
+/* 常用分類一鍵新增 */
+function renderQuickAdd(){
+  if (!canEdit()){ $('#quickAdd').innerHTML = ''; return; }
+  $('#quickAdd').innerHTML = '<span class="qlabel">快速記帳</span>' +
+    EXP_CATS.map(function(c){
+      return '<button class="qbtn" data-quick="' + esc(c.key) + '"' +
+        ' style="border-color:' + c.color + '55">' + c.emoji + ' ' + esc(c.key) + '</button>';
+    }).join('');
+}
+
+/* 分類佔比：純 SVG 甜甜圈圖。
+   不用外部圖表函式庫，離線和中國都能顯示。 */
+function renderExpChart(list){
+  var box = $('#expChart');
+  if (list.length < 2){ box.innerHTML = ''; return; }
+
+  var byCat = {};
+  list.forEach(function(e){
+    var c = String(e.category || '其他').trim() || '其他';
+    byCat[c] = (byCat[c] || 0) + twd(e);
+  });
+  var cats = Object.keys(byCat).map(function(c){
+    return { key:c, v:byCat[c], info:catInfo(c) };
+  }).filter(function(x){ return x.v > 0; })
+    .sort(function(a,b){ return b.v - a.v; });
+
+  var total = cats.reduce(function(a,c){ return a + c.v; }, 0);
+  if (!total || cats.length < 2){ box.innerHTML = ''; return; }
+
+  var R = 52, r = 32, cx = 60, cy = 60, ang = -90, gap = cats.length > 1 ? 1.5 : 0;
+  var paths = cats.map(function(c){
+    var sweep = c.v / total * 360;
+    var a0 = ang + gap / 2, a1 = ang + sweep - gap / 2;
+    ang += sweep;
+    if (a1 <= a0) a1 = a0 + 0.1;
+    var large = (a1 - a0) > 180 ? 1 : 0;
+    function pt(a, rad){
+      var t = a * Math.PI / 180;
+      return (cx + rad * Math.cos(t)).toFixed(2) + ' ' + (cy + rad * Math.sin(t)).toFixed(2);
+    }
+    var d = 'M ' + pt(a0,R) + ' A ' + R + ' ' + R + ' 0 ' + large + ' 1 ' + pt(a1,R) +
+            ' L ' + pt(a1,r) + ' A ' + r + ' ' + r + ' 0 ' + large + ' 0 ' + pt(a0,r) + ' Z';
+    return '<path d="' + d + '" fill="' + c.info.color + '"><title>' +
+      esc(c.key) + ' ' + money(c.v) + '</title></path>';
+  }).join('');
+
+  box.innerHTML =
+    '<div class="chart pie">' +
+      '<svg viewBox="0 0 120 120" role="img" aria-label="分類佔比">' + paths +
+        '<text x="60" y="57" class="pctr">' + cats.length + '</text>' +
+        '<text x="60" y="70" class="pctr2">類</text>' +
+      '</svg>' +
+      '<div class="legend">' + cats.map(function(c){
+        var pct = Math.round(c.v / total * 100);
+        return '<div class="lrow">' +
+          '<span class="ldot" style="background:' + c.info.color + '"></span>' +
+          '<span class="lname">' + c.info.emoji + ' ' + esc(c.key) + '</span>' +
+          '<span class="lpct">' + pct + '%</span>' +
+          '<span class="lval">' + money(c.v) + '</span>' +
+        '</div>';
+      }).join('') + '</div>' +
+    '</div>';
+}
+
 function renderBudget(){
   var air = (DATA.flights || [])
     .filter(function(f){ return n(f.price) > 0; })
     .map(function(f){ return n(f.price); });
   var minAir = air.length ? Math.min.apply(null, air) : 0;
-
-  // 住宿：每個城市取最低價相加
-  var byCity = {};
-  (DATA.stays || []).forEach(function(s){
-    var p = n(s.price);
-    if (p <= 0) return;
-    var c = String(s.city || '其他').trim();
-    if (!byCity[c] || p < byCity[c]) byCity[c] = p;
-  });
-  var stayTotal = 0;
-  Object.keys(byCity).forEach(function(c){ stayTotal += byCity[c]; });
+  var maxAir = air.length ? Math.max.apply(null, air) : 0;
 
   var tr = (DATA.trains || []).filter(function(t){ return n(t.price) > 0; })
     .map(function(t){ return n(t.price); });
   var trainSum = tr.length ? tr.slice(0,2).reduce(function(a,b){ return a + b; }, 0) : 0;
 
   $('#bAir').textContent = minAir ? money(minAir) : '—';
-  $('#bStay').textContent = stayTotal ? money(stayTotal) : '—';
+  // 原本這裡是「住宿合計」，但它把兩個城市各自最低價相加，
+  // 而你們不會真的住最便宜那兩間，晚數也不同，數字沒有參考價值。
+  // 改成機票的價格區間，這個是真的有意義的比較。
+  $('#bStay').textContent = air.length > 1 ? money(maxAir - minAir) : '—';
   $('#bTrain').textContent = trainSum ? money(trainSum) : '—';
   $('#bDays').textContent = daysToGo() + ' 天';
 }
@@ -2329,9 +2681,23 @@ var FORMS = {
     ['detail','細節','textarea'],
     ['owner','負責人','text'],
     ['status','狀態','select', function(){ return ['待確認','已確認']; }]
+  ],
+  expenses: [
+    ['date','日期','select', function(){ return TRIP_DAYS; }],
+    ['category','分類','select', function(){ return EXP_CATS.map(function(c){ return c.key; }); }],
+    ['title','項目','text'],
+    ['amount','金額','number'],
+    ['currency','幣別','select', function(){ return ['TWD','USD']; }],
+    ['payer','誰付的','select', function(){ return payerOptions(); }],
+    ['note','備註','textarea']
   ]
 };
-var SHEET_NAME = { days:'行程', stays:'住宿', flights:'機票', trains:'車票', todos:'待辦', members:'成員' };
+
+function payerOptions(){
+  var out = (DATA.members || []).map(function(m){ return m.name; });
+  return out.length ? out : ['我'];
+}
+var SHEET_NAME = { days:'行程', stays:'住宿', flights:'機票', trains:'車票', todos:'待辦', members:'成員', expenses:'帳目' };
 
 /* ============================================================
    航班對照表（台北 ⇄ 西雅圖直飛，2026-08 查得的表定時刻）
@@ -2407,6 +2773,15 @@ function openDrawer(sheet, id){
       row.no = mx + 1;
     }
     if (sheet === 'todos') row.status = '待確認';
+    if (sheet === 'expenses'){
+      // 預設今天（若在行程期間內），否則用目前看的那天
+      var t = todayIso();
+      row.date = TRIP_DAYS.indexOf(t) > -1 ? t : activeDay;
+      row.category = quickCat || '吃飯';
+      row.currency = 'USD';               // 在美國，多半是刷美元
+      row.payer = ME ? ME.name : payerOptions()[0];
+      quickCat = '';
+    }
     row.sort = ((DATA[sheet] || []).length + 1) * 10;
     // 行程：先記住這是新的，存檔時再依時間插到正確位置
     if (sheet === 'days') row.__isNew = true;
@@ -2767,6 +3142,36 @@ $('#todoFilters').addEventListener('click', function(e){
   if (!b) return;
   todoFilter = b.dataset.filter;
   renderTodos();
+});
+
+/* 記帳：檢視切換與快速新增 */
+$('#expViews').addEventListener('click', function(e){
+  var b = e.target.closest('[data-view]');
+  if (!b) return;
+  expView = b.dataset.view;
+  Array.prototype.forEach.call(this.querySelectorAll('.ftab'), function(x){
+    x.classList.toggle('on', x === b);
+  });
+  renderExpenses();
+});
+$('#quickAdd').addEventListener('click', function(e){
+  var b = e.target.closest('[data-quick]');
+  if (!b) return;
+  quickCat = b.dataset.quick;
+  openDrawer('expenses', null);
+});
+/* 點匯率可以改 */
+$('#rateHint').addEventListener('click', function(){
+  if (!canEdit()) return;
+  var v = prompt('1 美元等於多少台幣？', usdRate());
+  if (v == null) return;
+  var r = parseFloat(v);
+  if (!isFinite(r) || r <= 0){ toast('請輸入有效的匯率'); return; }
+  var row = confRow('usdRate', String(r));
+  saveCache();
+  renderExpenses();
+  push({ action:'save', sheet:'settings', rows:[row], actor: ME ? ME.name : '' });
+  toast('匯率改成 ' + r);
 });
 
 /* 拖拉：滑鼠與觸控共用 Pointer Events。行程與待辦共用同一套 */
