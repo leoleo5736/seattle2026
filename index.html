@@ -2358,8 +2358,9 @@ function renderTodos(){
    最後算出誰欠誰多少。兩人同行這樣最省事。
    ============================================================ */
 var EXP_CATS = [
-  { key:'交通', emoji:'🚇', color:'#4A6FA5' },
+  { key:'機票', emoji:'✈️', color:'#3E6B8A' },
   { key:'住宿', emoji:'🏨', color:'#2D6A4F' },
+  { key:'交通', emoji:'🚇', color:'#4A6FA5' },
   { key:'吃飯', emoji:'🍽', color:'#D89B3C' },
   { key:'購物', emoji:'🛍', color:'#C25A47' },
   { key:'門票', emoji:'🎫', color:'#7FA8A0' },
@@ -2558,7 +2559,7 @@ function renderQuickAdd(){
    不用外部圖表函式庫，離線和中國都能顯示。 */
 function renderExpChart(list){
   var box = $('#expChart');
-  if (list.length < 2){ box.innerHTML = ''; return; }
+  if (!list.length){ box.innerHTML = ''; return; }
 
   var byCat = {};
   list.forEach(function(e){
@@ -2571,9 +2572,33 @@ function renderExpChart(list){
     .sort(function(a,b){ return b.v - a.v; });
 
   var total = cats.reduce(function(a,c){ return a + c.v; }, 0);
-  if (!total || cats.length < 2){ box.innerHTML = ''; return; }
+  if (!total){ box.innerHTML = ''; return; }
 
+  // 只有一個分類時畫完整的圓環，不留縫
   var R = 52, r = 32, cx = 60, cy = 60, ang = -90, gap = cats.length > 1 ? 1.5 : 0;
+
+  // 單一分類：SVG 的弧線畫不出完整 360°，改用兩個半圓疊成整圈
+  if (cats.length === 1){
+    var c0 = cats[0];
+    box.innerHTML =
+      '<div class="chart pie">' +
+        '<svg viewBox="0 0 120 120" role="img" aria-label="分類佔比">' +
+          '<circle cx="60" cy="60" r="' + ((R + r) / 2) + '" fill="none"' +
+            ' stroke="' + c0.info.color + '" stroke-width="' + (R - r) + '"/>' +
+          '<text x="60" y="57" class="pctr">1</text>' +
+          '<text x="60" y="70" class="pctr2">類</text>' +
+        '</svg>' +
+        '<div class="legend"><div class="lrow">' +
+          '<span class="ldot" style="background:' + c0.info.color + '"></span>' +
+          '<span class="lname">' + c0.info.emoji + ' ' + esc(c0.key) + '</span>' +
+          '<span class="lpct">100%</span>' +
+          '<span class="lval">' + money(c0.v) + '</span>' +
+        '</div>' +
+        '<p class="none" style="margin-top:6px">記到第二種分類就會看到佔比。</p>' +
+        '</div>' +
+      '</div>';
+    return;
+  }
   var paths = cats.map(function(c){
     var sweep = c.v / total * 360;
     var a0 = ang + gap / 2, a1 = ang + sweep - gap / 2;
