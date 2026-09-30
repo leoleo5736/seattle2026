@@ -697,6 +697,17 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
 }
 
 /* ── 記帳 ── */
+.settletoggle{
+  margin-top:14px;font-size:11.5px;letter-spacing:.08em;
+  color:rgba(238,242,240,.5);
+  border:1px solid rgba(127,168,160,.28);
+  border-radius:999px;padding:5px 14px;
+}
+.settletoggle:hover{color:var(--glacier);border-color:rgba(127,168,160,.5)}
+.settlebox{animation:slidein .22s ease}
+@keyframes slidein{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.settlebox{animation:none}}
+
 .paidlist{margin-top:14px;padding-top:13px;border-top:1px solid rgba(127,168,160,.2)}
 .paidrow{
   display:flex;align-items:center;gap:10px;
@@ -2367,7 +2378,8 @@ var EXP_CATS = [
   { key:'其他', emoji:'📌', color:'#8E6C88' }
 ];
 var expView = 'list';
-var quickCat = '';     // 從快速記帳按鈕帶進來的分類
+var quickCat = '';       // 從快速記帳按鈕帶進來的分類
+var showSettle = false;  // 結算預設收起來
 
 function catInfo(k){
   var hit = EXP_CATS.filter(function(c){ return c.key === k; })[0];
@@ -2438,6 +2450,32 @@ function transfers(balance){
   return out;
 }
 
+/* 結算區塊。只有使用者主動點開才會出現 */
+function settleHtml(s){
+  var tf = transfers(s.balance);
+  return '<div class="settlebox">' +
+    '<div class="paidlist">' +
+      s.balance.map(function(b){
+        var m = (DATA.members || []).filter(function(x){ return x.name === b.name; })[0];
+        var cls = b.diff > 1 ? 'up' : (b.diff < -1 ? 'down' : '');
+        return '<div class="paidrow">' +
+          '<span class="pn">' + esc(m && m.emoji ? m.emoji : '·') + ' ' + esc(b.name) + '</span>' +
+          '<span class="pv">付了 ' + money(b.paid) + '</span>' +
+          '<span class="pd ' + cls + '">' +
+            (b.diff > 1 ? '多付 ' + money(b.diff)
+              : (b.diff < -1 ? '少付 ' + money(-b.diff) : '剛好')) +
+          '</span></div>';
+      }).join('') +
+    '</div>' +
+    (tf.length
+      ? '<div class="settle">回台灣後再結就好：<br>' + tf.map(function(t){
+          return '<b>' + esc(t.from) + '</b> 給 <b>' + esc(t.to) + '</b> ' +
+            '<u>' + money(t.amount) + '</u>';
+        }).join('<br>') + '</div>'
+      : '<div class="settle ok">剛好打平 ✓</div>') +
+  '</div>';
+}
+
 function renderExpenses(){
   var list = expsInOrder();
   var s = settle();
@@ -2452,32 +2490,18 @@ function renderExpenses(){
       '出去玩的時候誰先付都沒關係，記下來最後一次結清就好。<br>' +
       '美元的消費選 USD，會自動換算台幣統計。</p>';
   } else {
-    var tf = transfers(s.balance);
+    // 預設只顯示「一起花了多少」。
+    // 結算收在摺疊區裡，想看再點——這是記錄工具，不是催款單。
+    // 刻意不放「平均每天」之類的指標，玩的時候不需要被數字盯著。
     $('#expSummary').innerHTML =
       '<h3>總計 · ' + s.count + ' 筆</h3>' +
       '<div class="sgrid">' +
-        '<div><span>總支出</span><b>' + money(s.total) + '</b></div>' +
-        '<div><span>每人均攤</span><b>' + money(s.share) + '</b></div>' +
+        '<div><span>一起花了</span><b>' + money(s.total) + '</b></div>' +
+        '<div><span>每人約</span><b>' + money(s.share) + '</b></div>' +
       '</div>' +
-      '<div class="paidlist">' +
-        s.balance.map(function(b){
-          var m = (DATA.members || []).filter(function(x){ return x.name === b.name; })[0];
-          var cls = b.diff > 1 ? 'up' : (b.diff < -1 ? 'down' : '');
-          return '<div class="paidrow">' +
-            '<span class="pn">' + esc(m && m.emoji ? m.emoji : '·') + ' ' + esc(b.name) + '</span>' +
-            '<span class="pv">付了 ' + money(b.paid) + '</span>' +
-            '<span class="pd ' + cls + '">' +
-              (b.diff > 1 ? '應收 ' + money(b.diff)
-                : (b.diff < -1 ? '應付 ' + money(-b.diff) : '已平')) +
-            '</span></div>';
-        }).join('') +
-      '</div>' +
-      (tf.length
-        ? '<div class="settle">' + tf.map(function(t){
-            return '<b>' + esc(t.from) + '</b> 給 <b>' + esc(t.to) + '</b> ' +
-              '<u>' + money(t.amount) + '</u>';
-          }).join('<br>') + '</div>'
-        : '<div class="settle ok">帳已經平了 ✓</div>');
+      '<button class="settletoggle" id="settleToggle" aria-expanded="' + (showSettle ? 'true' : 'false') + '">' +
+        (showSettle ? '收起結算 ▲' : '看結算 ▼') + '</button>' +
+      (showSettle ? settleHtml(s) : '');
   }
 
   renderExpChart(list);
@@ -3184,6 +3208,11 @@ $('#quickAdd').addEventListener('click', function(e){
   if (!b) return;
   quickCat = b.dataset.quick;
   openDrawer('expenses', null);
+});
+$('#expSummary').addEventListener('click', function(e){
+  if (!e.target.closest('#settleToggle')) return;
+  showSettle = !showSettle;
+  renderExpenses();
 });
 /* 點匯率可以改 */
 $('#rateHint').addEventListener('click', function(){
