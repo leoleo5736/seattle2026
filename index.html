@@ -194,6 +194,9 @@ body.readonly .grip,
 body.readonly .daytools,
 body.readonly .quickadd,
 body.readonly #rateHint,
+body.readonly .packadd,
+body.readonly .pdel,
+body.readonly #packReset,
 body.readonly #strayWarn button{ display:none!important; }
 body.readonly .p-foot{ justify-content:flex-start }
 .robadge{
@@ -696,6 +699,61 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
   font-weight:500;font-variant-numeric:tabular-nums;
 }
 
+/* ── 打包清單 ── */
+.packintro{
+  background:var(--paper);border:1px solid var(--line2);
+  border-radius:var(--r);padding:26px 20px;text-align:center;
+}
+.pi-title{font-size:16px;margin-bottom:7px}
+.pi-sub{font-size:12.5px;color:rgba(22,48,43,.55);line-height:1.8;max-width:330px;margin:0 auto}
+.bigbtn{
+  margin-top:18px;padding:12px 26px;border-radius:999px;
+  background:var(--fir);color:var(--fog2);font-size:14px;letter-spacing:.06em;
+}
+.bigbtn:hover{background:var(--pine)}
+
+.packh1{
+  font-family:var(--display);font-size:11px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--moss);
+  margin:20px 0 9px;padding-bottom:5px;
+  border-bottom:1px solid var(--line);
+}
+.packh1:first-child{margin-top:0}
+.packgroup{
+  background:var(--paper);border:1px solid var(--line2);
+  border-radius:var(--r);margin-bottom:7px;overflow:hidden;
+}
+.packhead{
+  display:flex;align-items:center;gap:9px;width:100%;
+  padding:11px 13px;text-align:left;
+}
+.packhead:hover{background:var(--fog2)}
+.pcaret{flex:0 0 auto;font-size:10px;color:var(--moss);width:12px}
+.pname{flex:1;font-size:13.5px}
+.pcount{
+  flex:0 0 auto;font-family:var(--display);font-size:11.5px;
+  color:rgba(22,48,43,.45);padding:2px 8px;border-radius:999px;
+  background:rgba(22,48,43,.05);
+}
+.pcount.full{background:rgba(45,106,79,.14);color:var(--moss)}
+.packitems{padding:2px 13px 11px;border-top:1px solid var(--line2)}
+.packrow{
+  display:flex;align-items:center;gap:10px;
+  padding:6px 0;
+}
+.packrow.ok .pitem{text-decoration:line-through;color:rgba(22,48,43,.35)}
+.packrow.ok .tbox{background:var(--moss);border-color:var(--moss);color:var(--paper)}
+.pitem{flex:1;font-size:13px;line-height:1.5}
+.pdel{width:24px;height:24px;font-size:11px;opacity:0}
+.packrow:hover .pdel{opacity:1}
+@media(hover:none){.pdel{opacity:.4}}
+.packadd{
+  width:100%;margin-top:6px;padding:7px;
+  border:1px dashed var(--line);border-radius:var(--r);
+  font-size:12px;color:var(--moss);
+}
+.packadd:hover{background:var(--fog2)}
+
 /* ── 記帳 ── */
 .settletoggle{
   margin-top:14px;font-size:11.5px;letter-spacing:.08em;
@@ -1052,6 +1110,7 @@ mark{
       <button class="tab" data-tab="trains">火車<b id="cTrains"></b></button>
       <button class="tab" data-tab="todos">待辦<b id="cTodos"></b></button>
       <button class="tab" data-tab="expenses">記帳<b id="cExp"></b></button>
+      <button class="tab" data-tab="packing">打包<b id="cPack"></b></button>
     </div>
   </header>
 
@@ -1143,6 +1202,12 @@ mark{
       <div id="expList"></div>
       <button class="addrow" data-add="expenses">＋ 記一筆</button>
     </section>
+
+    <!-- 打包清單 -->
+    <section id="s-packing">
+      <div class="shead"><h2>Packing List</h2><p id="packWho">出發前一項一項確認</p></div>
+      <div id="packBody"></div>
+    </section>
   </main>
 
   <div class="statusbar">
@@ -1181,7 +1246,7 @@ var CACHE_KEY = 'sea-pdx-data';
 var ME_KEY = 'sea-pdx-me';
 var QUEUE_KEY = 'sea-pdx-queue';
 
-var DATA = { settings:[], members:[], days:[], stays:[], flights:[], trains:[], todos:[], expenses:[] };
+var DATA = { settings:[], members:[], days:[], stays:[], flights:[], trains:[], todos:[], expenses:[], packing:[] };
 var ME = null;
 
 /* 訪客：唯讀身分。不存在試算表裡，所以不會被誤刪、
@@ -1532,6 +1597,7 @@ function renderAll(){
   renderTrains();
   renderTodos();
   renderExpenses();
+  renderPacking();
   renderCounts();
 }
 
@@ -1544,6 +1610,7 @@ function renderSheet(sheet){
   if (sheet === 'trains')  renderTrains();
   if (sheet === 'todos')   renderTodos();
   if (sheet === 'expenses') renderExpenses();
+  if (sheet === 'packing')  renderPacking();
   if (sheet === 'members') { renderPicker(); renderExpenses(); }
   renderCounts();
 }
@@ -2363,6 +2430,46 @@ function renderTodos(){
 }
 
 /* ============================================================
+   打包清單範本
+   ------------------------------------------------------------
+   格式：['大標題', [['小標題', ['項目', ...]], ...]]
+   括號項目（例如「(鏡子)」）代表前面已經出現過的重複品，
+   原樣保留，使用者自己決定要不要刪。
+   ============================================================ */
+var PACK_TEMPLATE = [
+  ['Packing List 國外', [
+    ['事先確認', ['簽證效期','特別餐預選','保險','預防接種','手機上網 (Pokyfi)','護照效期','機票選位']],
+    ['隨身包', ['護照（效期）','簽證（效期）','信用卡（額度、機票、旅館）','機票','訂房確認','租車確認',
+      '備用證件（隨身）','備用相片','錢','護身符','提貨單','iPad','手機','分享器 (Pokyfy)','行動電源',
+      '備用手機','衛生棉','衛生紙','濕紙巾','口罩','酒精棉','髮圈',
+      '隨身藥品（眼藥、乾洗手、止痛藥、胃藥）','墨鏡','相機充電器','相機電池','相機記憶卡','電腦',
+      '滑鼠','電腦電源','筆','眼鏡','充電線','水壺','薄外套']],
+    ['長途隨身舒服包', ['厚襪子','睡眠枕/頭套']],
+    ['預備盥洗隨身化妝包/盥洗包', ['鏡子','卸妝','洗面乳','乳液','牙刷','防曬油','粉底','眉筆','唇膏','粉餅','粉撲']],
+    ['過夜隨身化妝包/盥洗包', ['(鏡子)','隱形眼鏡','(卸妝)','(洗面乳)','化妝棉','化妝水','精華液','(乳液)',
+      '(牙刷)','牙膏','(防曬油)','(粉底)','腮紅','(眉筆)','眉膏','眼線','睫毛夾','睫毛膏','睫毛梳',
+      '護唇膏','(唇膏)','護手霜','瀏海夾','棉花棒','(粉餅)','粉撲','乾洗髮']],
+    ['化妝包', ['照明燈','(鏡子)','雙眼皮貼','剪刀','化妝棉','化妝水','去角質','眼霜',
+      '精華液 (美白/抗皺/A 醇)','保濕 (乳液/乳霜)','護唇膏','痘痘藥','過敏藥','Pawpaw','身體去角質',
+      '身體乳','護髮素','防曬油','粉底','蜜粉','腮紅','修容','打亮','粉餅','(眉筆)','眉膏','眼影底高',
+      '眼影','(眼線)','(睫毛夾)','(睫毛膏)','(睫毛梳)','(護唇膏)','唇膏','棉花棒','(髮圈)','(瀏海夾)',
+      '刷具','鑷子','酒精','止汗劑','香水']],
+    ['工具包及雜物', ['超長充電線/延長線','轉接插座','多頭插頭','手電筒','筷子','咖啡','電湯匙','針線包',
+      '指甲刀','門擋','止滑墊','衣架','衣夾','備用證件','酒精棉片','衛生棉','衛生紙','濕紙巾','口罩',
+      '帽子','雨傘','塑膠袋','拖鞋','鞋子(行走/正式穿著/海灘/健行)','USB 充電頭','type C 充電頭']],
+    ['藥', ['胃藥','止痛藥','脹氣藥','感冒藥','喉片','表飛鳴','維他命等','眼藥']],
+    ['衣物', ['上衣','褲子','襪子','內褲','內衣','睡衣褲','毛巾','泳衣','運動服']],
+    ['盥洗包', ['隱形眼鏡用具','生理食鹽水','備用隱形眼鏡','卸妝','洗面乳','(牙刷)','(牙膏)','牙線',
+      '頭皮深層潔淨','洗髮精','潤髮乳','沐浴乳','面膜','剃毛刀/刮鬍刀','髮夾','髮套']]
+  ]],
+  ['行程特殊需求用品', [
+    ['出發前', ['整理手機','備份手機','信用卡掛失電話','確認信用卡額度','準備待處理事情','留下緊急聯絡方式',
+      '確認交通','網路報到(起飛前1.5至48小時辦理網路報到)','Mickey Minnie','重要物品保管',
+      '拔掉家中不需要的電器插頭','行李照相']]
+  ]]
+];
+
+/* ============================================================
    記帳
    ------------------------------------------------------------
    一律平均分攤：每筆都是全員均分，只要記「誰付的」，
@@ -2655,6 +2762,201 @@ function renderExpChart(list){
         '</div>';
       }).join('') + '</div>' +
     '</div>';
+}
+
+/* ============================================================
+   打包清單
+   ------------------------------------------------------------
+   每個人一份，只看自己的。小標題預設收起來，
+   因為全部展開有 195 項，捲到天荒地老。
+   ============================================================ */
+var packOpen = {};      // { '小標題': true } 哪些組展開了
+var packQuery = '';
+var packHideDone = false;
+
+function myPacking(){
+  if (!ME) return [];
+  return (DATA.packing || [])
+    .filter(function(r){ return String(r.owner) === ME.name; })
+    .sort(function(a,b){ return n(a.sort) - n(b.sort); });
+}
+function packDone(r){ return String(r.done) === 'true' || r.done === true; }
+
+function renderPacking(){
+  var box = $('#packBody');
+  var mine = myPacking();
+  $('#cPack').textContent = mine.length ? (mine.filter(packDone).length + '/' + mine.length) : '';
+
+  if (!ME){
+    box.innerHTML = '<p class="empty">請先在首頁選擇你是誰。</p>';
+    return;
+  }
+  $('#packWho').textContent = ME.name + ' 的打包清單';
+
+  // 還沒有清單 → 顯示「給我來一份」
+  if (!mine.length){
+    box.innerHTML =
+      '<div class="packintro">' +
+        '<p class="pi-title">還沒有你的清單</p>' +
+        '<p class="pi-sub">按下面的按鈕會建立一份完整的打包清單（' + packTemplateCount() + ' 項），' +
+          '分成 ' + packGroupCount() + ' 組。用不到的自己刪，也可以隨時新增。</p>' +
+        (canEdit()
+          ? '<button class="bigbtn" id="packSeed">🧳 給我來一份</button>'
+          : '<p class="pi-sub">訪客模式不能建立清單。</p>') +
+      '</div>';
+    return;
+  }
+
+  // 分組
+  var groups = [];
+  var idx = {};
+  mine.forEach(function(r){
+    var key = String(r.g1 || '') + '｜' + String(r.g2 || '');
+    if (!(key in idx)){
+      idx[key] = groups.length;
+      groups.push({ g1:r.g1, g2:r.g2, key:key, rows:[] });
+    }
+    groups[idx[key]].rows.push(r);
+  });
+
+  var q = packQuery.trim().toLowerCase();
+  var totalDone = mine.filter(packDone).length;
+  var pct = mine.length ? Math.round(totalDone / mine.length * 100) : 0;
+
+  var html =
+    '<div class="progress">' +
+      '<div class="pgbar"><span style="width:' + pct + '%"></span></div>' +
+      '<span class="pgtxt">已打包 <b>' + totalDone + '</b> / ' + mine.length + '</span>' +
+    '</div>' +
+    '<div class="searchbar">' +
+      '<span class="sicon">🔍</span>' +
+      '<input type="search" id="packSearch" placeholder="搜尋物品…" autocomplete="off"' +
+        ' value="' + esc(packQuery) + '" aria-label="搜尋打包項目">' +
+      '<button type="button" id="packClear"' + (packQuery ? '' : ' style="display:none"') +
+        ' aria-label="清除">✕</button>' +
+    '</div>' +
+    '<div class="filters">' +
+      '<button class="ftab' + (packHideDone ? '' : ' on') + '" data-packf="all">全部</button>' +
+      '<button class="ftab' + (packHideDone ? ' on' : '') + '" data-packf="open">只看沒打包的</button>' +
+      '<button class="ftab" data-packall="open">全部展開</button>' +
+      '<button class="ftab" data-packall="close">全部收起</button>' +
+    '</div>';
+
+  var shown = 0;
+  var lastG1 = '';
+
+  html += groups.map(function(g){
+    var rows = g.rows.filter(function(r){
+      if (packHideDone && packDone(r)) return false;
+      if (q && String(r.item || '').toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+    if (!rows.length) return '';
+    shown += rows.length;
+
+    // 搜尋時全部展開，不然找不到東西
+    var open = q ? true : !!packOpen[g.key];
+    var gd = g.rows.filter(packDone).length;
+
+    var out = '';
+    if (g.g1 !== lastG1){
+      lastG1 = g.g1;
+      out += '<div class="packh1">' + esc(g.g1) + '</div>';
+    }
+    out += '<div class="packgroup' + (open ? ' open' : '') + '">' +
+      '<button class="packhead" data-packgroup="' + esc(g.key) + '">' +
+        '<span class="pcaret">' + (open ? '▾' : '▸') + '</span>' +
+        '<span class="pname">' + esc(g.g2) + '</span>' +
+        '<span class="pcount' + (gd === g.rows.length ? ' full' : '') + '">' +
+          gd + '/' + g.rows.length + '</span>' +
+      '</button>';
+
+    if (open){
+      out += '<div class="packitems">' + rows.map(function(r){
+        var d = packDone(r);
+        return '<div class="packrow' + (d ? ' ok' : '') + '">' +
+          '<button class="tbox" data-packtick="' + esc(r.id) + '" aria-label="切換">✓</button>' +
+          '<span class="pitem">' + mark(r.item, q) + '</span>' +
+          (canEdit()
+            ? '<button class="ibtn pdel" data-packdel="' + esc(r.id) + '" aria-label="刪除">✕</button>'
+            : '') +
+        '</div>';
+      }).join('') +
+      (canEdit()
+        ? '<button class="packadd" data-packadd="' + esc(g.key) + '">＋ 加一項</button>'
+        : '') +
+      '</div>';
+    }
+    out += '</div>';
+    return out;
+  }).join('');
+
+  if (!shown){
+    html += '<p class="empty">' +
+      (q ? '找不到符合「' + esc(packQuery) + '」的物品。' : '全部都打包好了 🎉') +
+      '</p>';
+  }
+
+  if (canEdit()){
+    html += '<button class="addrow" id="packReset">重新產生清單（會清掉目前這份）</button>';
+  }
+
+  box.innerHTML = html;
+}
+
+function packTemplateCount(){
+  var c = 0;
+  PACK_TEMPLATE.forEach(function(a){ a[1].forEach(function(b){ c += b[1].length; }); });
+  return c;
+}
+function packGroupCount(){
+  var c = 0;
+  PACK_TEMPLATE.forEach(function(a){ c += a[1].length; });
+  return c;
+}
+
+/* 建立一份清單。195 列一次送出會逾時，所以分批。 */
+function seedPacking(){
+  if (!ME){ toast('請先選擇你是誰'); return; }
+  if (!canEdit()){ toast('訪客模式不能建立'); return; }
+
+  var rows = [];
+  var sort = 0;
+  var stamp = new Date().toISOString().slice(0,19);
+  PACK_TEMPLATE.forEach(function(a){
+    a[1].forEach(function(b){
+      b[1].forEach(function(item){
+        sort += 10;
+        rows.push({
+          id: 'local-' + Date.now() + '-' + sort + '-' + Math.random().toString(36).slice(2,6),
+          sort: sort, owner: ME.name, g1: a[0], g2: b[0],
+          item: item, done: '', note: '',
+          updatedBy: ME.name, updatedAt: stamp
+        });
+      });
+    });
+  });
+
+  // 先更新畫面，使用者立刻看得到
+  DATA.packing = (DATA.packing || []).concat(rows);
+  saveCache();
+  packOpen = {};
+  renderPacking();
+  toast('建立了 ' + rows.length + ' 項，開始送出…');
+
+  // 分批送，每批 50 列
+  var batches = [];
+  for (var i = 0; i < rows.length; i += 50) batches.push(rows.slice(i, i + 50));
+  var sent = 0;
+  (function next(){
+    if (!batches.length){ toast('清單已同步完成'); return; }
+    var b = batches.shift();
+    push({ action:'save', sheet:'packing', rows:b, actor: ME.name }, function(ok){
+      sent += b.length;
+      if (batches.length) status('sync', '同步中… ' + sent + '/' + rows.length);
+      next();
+    });
+  })();
 }
 
 function renderBudget(){
@@ -3213,6 +3515,110 @@ $('#expSummary').addEventListener('click', function(e){
   if (!e.target.closest('#settleToggle')) return;
   showSettle = !showSettle;
   renderExpenses();
+});
+
+/* 打包清單 */
+$('#packBody').addEventListener('click', function(e){
+  // 建立清單
+  if (e.target.closest('#packSeed')){ seedPacking(); return; }
+
+  if (e.target.closest('#packReset')){
+    if (!confirm('這會刪掉你目前的打包清單，重新產生一份全新的。\n已經打勾的紀錄也會消失，確定嗎？')) return;
+    var mine = myPacking();
+    var ids = mine.map(function(r){ return r.id; });
+    DATA.packing = (DATA.packing || []).filter(function(r){ return ids.indexOf(r.id) === -1; });
+    saveCache();
+    // 分批刪除
+    for (var i = 0; i < ids.length; i += 50){
+      push({ action:'delete', sheet:'packing', ids: ids.slice(i, i + 50) });
+    }
+    seedPacking();
+    return;
+  }
+
+  // 展開／收起某一組
+  var gh = e.target.closest('[data-packgroup]');
+  if (gh){
+    var k = gh.dataset.packgroup;
+    packOpen[k] = !packOpen[k];
+    renderPacking();
+    return;
+  }
+
+  // 全部展開／收起
+  var pa = e.target.closest('[data-packall]');
+  if (pa){
+    if (pa.dataset.packall === 'close'){ packOpen = {}; }
+    else {
+      myPacking().forEach(function(r){
+        packOpen[String(r.g1 || '') + '｜' + String(r.g2 || '')] = true;
+      });
+    }
+    renderPacking();
+    return;
+  }
+
+  // 只看沒打包的
+  var pf = e.target.closest('[data-packf]');
+  if (pf){
+    packHideDone = pf.dataset.packf === 'open';
+    renderPacking();
+    return;
+  }
+
+  // 打勾
+  var pt = e.target.closest('[data-packtick]');
+  if (pt){
+    if (!canEdit()){ toast('訪客模式不能修改'); return; }
+    var row = (DATA.packing || []).filter(function(r){ return r.id === pt.dataset.packtick; })[0];
+    if (row){
+      row.done = packDone(row) ? '' : 'true';
+      saveRow('packing', row);
+    }
+    return;
+  }
+
+  // 刪除一項
+  var pd = e.target.closest('[data-packdel]');
+  if (pd){
+    if (!canEdit()){ toast('訪客模式不能修改'); return; }
+    deleteRow('packing', pd.dataset.packdel);
+    return;
+  }
+
+  // 在某一組裡加一項
+  var pad = e.target.closest('[data-packadd]');
+  if (pad){
+    if (!canEdit()){ toast('訪客模式不能修改'); return; }
+    var parts = pad.dataset.packadd.split('｜');
+    var name = prompt('要加什麼？（' + parts[1] + '）');
+    if (!name || !name.trim()) return;
+    var mx = 0;
+    myPacking().forEach(function(r){ if (n(r.sort) > mx) mx = n(r.sort); });
+    saveRow('packing', {
+      sort: mx + 10, owner: ME.name,
+      g1: parts[0], g2: parts[1], item: name.trim(), done: '', note: ''
+    });
+    return;
+  }
+
+  // 清除搜尋
+  if (e.target.closest('#packClear')){
+    packQuery = '';
+    renderPacking();
+    return;
+  }
+});
+
+/* 搜尋框是動態產生的，用事件委派 */
+$('#packBody').addEventListener('input', function(e){
+  if (e.target.id !== 'packSearch') return;
+  packQuery = e.target.value;
+  var pos = e.target.selectionStart;
+  renderPacking();
+  // 重畫之後把游標放回去，不然每打一個字焦點就跑掉
+  var el = $('#packSearch');
+  if (el){ el.focus(); try{ el.setSelectionRange(pos, pos); }catch(err){} }
 });
 /* 點匯率可以改 */
 $('#rateHint').addEventListener('click', function(){

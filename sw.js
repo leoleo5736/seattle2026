@@ -9,7 +9,7 @@
  * 改版時把 VERSION 加一，舊快取會自動清掉。
  */
 
-var VERSION = 'v18';
+var VERSION = 'v19';
 var CACHE = 'sea-pdx-' + VERSION;
 
 /* 網站外殼：這幾個檔案存下來，離線就能開 */
