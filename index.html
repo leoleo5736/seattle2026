@@ -740,13 +740,27 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
 .packrow{
   display:flex;align-items:center;gap:10px;
   padding:6px 0;
+  /* 底色往左右各延伸一點，蓋掉 packitems 的內距，整行看起來才完整 */
+  margin:0 -8px;padding-left:8px;padding-right:8px;
+  border-radius:var(--r);
+}
+/* 只有真的有滑鼠的裝置才上 hover。
+   觸控裝置沒有 hover，有些瀏覽器會讓狀態黏在點過的那一行上。 */
+@media(hover:hover) and (pointer:fine){
+  .packrow{transition:background .12s}
+  .packrow:hover{background:var(--fog)}
+  .packrow:hover .pitem{color:var(--fir)}
+  .packrow.ok:hover .pitem{color:rgba(22,48,43,.55)}
 }
 .packrow.ok .pitem{text-decoration:line-through;color:rgba(22,48,43,.35)}
 .packrow.ok .tbox{background:var(--moss);border-color:var(--moss);color:var(--paper)}
 .pitem{flex:1;font-size:13px;line-height:1.5}
-.pdel{width:24px;height:24px;font-size:11px;opacity:0}
-.packrow:hover .pdel{opacity:1}
-@media(hover:none){.pdel{opacity:.4}}
+/* 刪除鈕：有滑鼠時滑過才出現，觸控裝置則常駐淡淡的 */
+.pdel{width:24px;height:24px;font-size:11px;opacity:.4}
+@media(hover:hover) and (pointer:fine){
+  .pdel{opacity:0;transition:opacity .12s}
+  .packrow:hover .pdel{opacity:1}
+}
 /* 已打包那一段的分隔線 */
 .packdiv{
   display:flex;align-items:center;gap:8px;
