@@ -789,12 +789,12 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
   font-size:12px;color:var(--salmon);
 }
 .packdelgroup:hover{background:rgba(194,90,71,.07)}
-/* 空的組：標題淡一點，但還是看得到 */
+/* 空的組：標題淡一點，但高度跟其他組一樣，不要莫名變高 */
 .packgroup.empty .pname{color:rgba(22,48,43,.45)}
-.pcount.zero{background:transparent;color:rgba(22,48,43,.3);font-style:normal}
+.pcount.zero{background:transparent;color:rgba(22,48,43,.3)}
 .pempty{
   font-size:12px;color:rgba(22,48,43,.38);
-  padding:8px 0 2px;text-align:center;
+  padding:6px 0 4px;text-align:center;margin:0;
 }
 .addrow.subtle{
   margin-top:7px;border-style:dotted;
@@ -2943,8 +2943,9 @@ function renderPacking(){
     if (!rows.length && !empty) return '';
     shown += rows.length;
 
-    // 搜尋時全部展開，不然找不到東西
-    var open = q ? true : !!packOpen[g.key];
+    // 搜尋時全部展開，不然找不到東西。
+    // 空的組在搜尋時不要自動展開，不然會多出一堆沒內容的方塊。
+    var open = (q && !empty) ? true : !!packOpen[g.key];
     var gd = g.rows.filter(packDone).length;
 
     var out = '';
