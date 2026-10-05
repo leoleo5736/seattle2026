@@ -747,6 +747,18 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
 .pdel{width:24px;height:24px;font-size:11px;opacity:0}
 .packrow:hover .pdel{opacity:1}
 @media(hover:none){.pdel{opacity:.4}}
+/* 已打包那一段的分隔線 */
+.packdiv{
+  display:flex;align-items:center;gap:8px;
+  margin:9px 0 5px;
+}
+.packdiv::before,.packdiv::after{
+  content:'';flex:1;height:1px;background:var(--line2);
+}
+.packdiv span{
+  flex:0 0 auto;font-size:10.5px;letter-spacing:.1em;
+  color:rgba(22,48,43,.32);
+}
 .packadd{
   width:100%;margin-top:6px;padding:7px;
   border:1px dashed var(--line);border-radius:var(--r);
@@ -2872,7 +2884,12 @@ function renderPacking(){
       '</button>';
 
     if (open){
-      out += '<div class="packitems">' + rows.map(function(r){
+      // 組內沉底：沒打包的在上面，打包好的收在下面。
+      // 兩段之間放一條分隔線，讓它看起來是分區而不是順序亂掉。
+      var todo = rows.filter(function(r){ return !packDone(r); });
+      var okd  = rows.filter(packDone);
+
+      function itemHtml(r){
         var d = packDone(r);
         return '<div class="packrow' + (d ? ' ok' : '') + '">' +
           '<button class="tbox" data-packtick="' + esc(r.id) + '" aria-label="切換">✓</button>' +
@@ -2881,10 +2898,17 @@ function renderPacking(){
             ? '<button class="ibtn pdel" data-packdel="' + esc(r.id) + '" aria-label="刪除">✕</button>'
             : '') +
         '</div>';
-      }).join('') +
-      (canEdit()
-        ? '<button class="packadd" data-packadd="' + esc(g.key) + '">＋ 加一項</button>'
-        : '') +
+      }
+
+      out += '<div class="packitems">' +
+        todo.map(itemHtml).join('') +
+        (okd.length
+          ? '<div class="packdiv"><span>已打包 ' + okd.length + '</span></div>' +
+            okd.map(itemHtml).join('')
+          : '') +
+        (canEdit()
+          ? '<button class="packadd" data-packadd="' + esc(g.key) + '">＋ 加一項</button>'
+          : '') +
       '</div>';
     }
     out += '</div>';
