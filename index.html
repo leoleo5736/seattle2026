@@ -195,8 +195,11 @@ body.readonly .daytools,
 body.readonly .quickadd,
 body.readonly #rateHint,
 body.readonly .packadd,
+body.readonly .packacts,
+body.readonly .packdelgroup,
 body.readonly .pdel,
 body.readonly #packReset,
+body.readonly #packNewGroup,
 body.readonly #strayWarn button{ display:none!important; }
 body.readonly .p-foot{ justify-content:flex-start }
 .robadge{
@@ -773,12 +776,31 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
   flex:0 0 auto;font-size:10.5px;letter-spacing:.1em;
   color:rgba(22,48,43,.32);
 }
+.packacts{display:flex;gap:6px;margin-top:6px}
 .packadd{
-  width:100%;margin-top:6px;padding:7px;
+  flex:1;padding:7px;
   border:1px dashed var(--line);border-radius:var(--r);
   font-size:12px;color:var(--moss);
 }
 .packadd:hover{background:var(--fog2)}
+.packdelgroup{
+  flex:0 0 auto;padding:7px 13px;
+  border:1px dashed rgba(194,90,71,.3);border-radius:var(--r);
+  font-size:12px;color:var(--salmon);
+}
+.packdelgroup:hover{background:rgba(194,90,71,.07)}
+/* 空的組：標題淡一點，但還是看得到 */
+.packgroup.empty .pname{color:rgba(22,48,43,.45)}
+.pcount.zero{background:transparent;color:rgba(22,48,43,.3);font-style:normal}
+.pempty{
+  font-size:12px;color:rgba(22,48,43,.38);
+  padding:8px 0 2px;text-align:center;
+}
+.addrow.subtle{
+  margin-top:7px;border-style:dotted;
+  color:rgba(22,48,43,.38);font-size:12px;
+}
+.addrow.subtle:hover{color:var(--salmon);border-color:rgba(194,90,71,.35)}
 
 /* ── 記帳 ── */
 .settletoggle{
@@ -2808,6 +2830,38 @@ function myPacking(){
 }
 function packDone(r){ return String(r.done) === 'true' || r.done === true; }
 
+/* ------------------------------------------------------------
+   分組結構獨立存在設定裡（key = packGroups:<誰>）。
+   不然把一組的項目刪光，那組就會跟著消失——
+   使用者只是清空，不是要刪掉整組。
+   格式：'大標題｜小標題,大標題｜小標題,...'
+   ------------------------------------------------------------ */
+function packGroupsKey(){ return 'packGroups:' + (ME ? ME.name : ''); }
+
+function myPackGroups(){
+  var raw = conf(packGroupsKey(), '');
+  var list = String(raw).split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+
+  // 舊資料沒有這個設定 → 從現有項目推回來（只做一次）
+  if (!list.length){
+    var seen = {};
+    myPacking().forEach(function(r){
+      var k = String(r.g1 || '') + '｜' + String(r.g2 || '');
+      if (!seen[k]){ seen[k] = true; list.push(k); }
+    });
+  }
+  return list.map(function(k){
+    var p = k.split('｜');
+    return { key:k, g1:p[0] || '', g2:p[1] || '' };
+  });
+}
+
+function savePackGroups(keys){
+  var row = confRow(packGroupsKey(), keys.join(','));
+  saveCache();
+  push({ action:'save', sheet:'settings', rows:[row], actor: ME ? ME.name : '' });
+}
+
 function renderPacking(){
   var box = $('#packBody');
   var mine = myPacking();
@@ -2833,9 +2887,14 @@ function renderPacking(){
     return;
   }
 
-  // 分組
-  var groups = [];
+  // 分組：以儲存的結構為準，所以清空的組還是會留著
+  var groups = myPackGroups().map(function(g){
+    return { g1:g.g1, g2:g.g2, key:g.key, rows:[] };
+  });
   var idx = {};
+  groups.forEach(function(g, i){ idx[g.key] = i; });
+
+  // 萬一有項目的組不在結構裡（例如別處匯入的），補進去
   mine.forEach(function(r){
     var key = String(r.g1 || '') + '｜' + String(r.g2 || '');
     if (!(key in idx)){
@@ -2877,7 +2936,11 @@ function renderPacking(){
       if (q && String(r.item || '').toLowerCase().indexOf(q) === -1) return false;
       return true;
     });
-    if (!rows.length) return '';
+
+    // 搜尋或篩選時，沒有命中的組就不顯示；
+    // 但「真的空的組」要留著，不然刪光項目整組會消失
+    var empty = g.rows.length === 0;
+    if (!rows.length && !empty) return '';
     shown += rows.length;
 
     // 搜尋時全部展開，不然找不到東西
@@ -2889,12 +2952,14 @@ function renderPacking(){
       lastG1 = g.g1;
       out += '<div class="packh1">' + esc(g.g1) + '</div>';
     }
-    out += '<div class="packgroup' + (open ? ' open' : '') + '">' +
+    out += '<div class="packgroup' + (open ? ' open' : '') + (empty ? ' empty' : '') + '">' +
       '<button class="packhead" data-packgroup="' + esc(g.key) + '">' +
         '<span class="pcaret">' + (open ? '▾' : '▸') + '</span>' +
         '<span class="pname">' + esc(g.g2) + '</span>' +
-        '<span class="pcount' + (gd === g.rows.length ? ' full' : '') + '">' +
-          gd + '/' + g.rows.length + '</span>' +
+        (empty
+          ? '<span class="pcount zero">空的</span>'
+          : '<span class="pcount' + (gd === g.rows.length ? ' full' : '') + '">' +
+            gd + '/' + g.rows.length + '</span>') +
       '</button>';
 
     if (open){
@@ -2915,13 +2980,19 @@ function renderPacking(){
       }
 
       out += '<div class="packitems">' +
+        (empty ? '<p class="pempty">這組還沒有項目</p>' : '') +
         todo.map(itemHtml).join('') +
         (okd.length
           ? '<div class="packdiv"><span>已打包 ' + okd.length + '</span></div>' +
             okd.map(itemHtml).join('')
           : '') +
         (canEdit()
-          ? '<button class="packadd" data-packadd="' + esc(g.key) + '">＋ 加一項</button>'
+          ? '<div class="packacts">' +
+              '<button class="packadd" data-packadd="' + esc(g.key) + '">＋ 加一項</button>' +
+              (empty
+                ? '<button class="packdelgroup" data-packdelgroup="' + esc(g.key) + '">刪掉這組</button>'
+                : '') +
+            '</div>'
           : '') +
       '</div>';
     }
@@ -2936,7 +3007,8 @@ function renderPacking(){
   }
 
   if (canEdit()){
-    html += '<button class="addrow" id="packReset">重新產生清單（會清掉目前這份）</button>';
+    html += '<button class="addrow" id="packNewGroup">＋ 新增一組</button>' +
+      '<button class="addrow subtle" id="packReset">重新產生清單（會清掉目前這份）</button>';
   }
 
   box.innerHTML = html;
@@ -2975,12 +3047,23 @@ function seedPacking(){
     });
   });
 
+  // 把分組結構也存起來，這樣某組被刪光項目時組還在
+  var keys = [];
+  PACK_TEMPLATE.forEach(function(a){
+    a[1].forEach(function(b){ keys.push(a[0] + '｜' + b[0]); });
+  });
+
   // 先更新畫面，使用者立刻看得到
   DATA.packing = (DATA.packing || []).concat(rows);
+  confRow(packGroupsKey(), keys.join(','));
   saveCache();
   packOpen = {};
   renderPacking();
   toast('建立了 ' + rows.length + ' 項，開始送出…');
+
+  // 分組結構單獨送一次
+  push({ action:'save', sheet:'settings',
+         rows:[confRow(packGroupsKey(), keys.join(','))], actor: ME.name });
 
   // 分批送，每批 50 列
   var batches = [];
@@ -3637,6 +3720,43 @@ $('#packBody').addEventListener('click', function(e){
       sort: mx + 10, owner: ME.name,
       g1: parts[0], g2: parts[1], item: name.trim(), done: '', note: ''
     });
+    return;
+  }
+
+  // 刪掉空的組
+  var pdg = e.target.closest('[data-packdelgroup]');
+  if (pdg){
+    if (!canEdit()){ toast('訪客模式不能修改'); return; }
+    var dk = pdg.dataset.packdelgroup;
+    if (!confirm('刪掉「' + dk.split('｜')[1] + '」這一組？')) return;
+    savePackGroups(myPackGroups()
+      .map(function(x){ return x.key; })
+      .filter(function(x){ return x !== dk; }));
+    delete packOpen[dk];
+    renderPacking();
+    toast('已刪除');
+    return;
+  }
+
+  // 新增一組
+  if (e.target.closest('#packNewGroup')){
+    if (!canEdit()){ toast('訪客模式不能修改'); return; }
+    var gname = prompt('新的組名？（例如：滑雪裝備）');
+    if (!gname || !gname.trim()) return;
+    gname = gname.trim();
+
+    // 大標題沿用最後一組的，沒有的話用預設
+    var gs = myPackGroups();
+    var g1 = gs.length ? gs[gs.length - 1].g1 : 'Packing List 國外';
+    var newKey = g1 + '｜' + gname;
+    if (gs.some(function(x){ return x.key === newKey; })){
+      toast('已經有同名的組了');
+      return;
+    }
+    savePackGroups(gs.map(function(x){ return x.key; }).concat([newKey]));
+    packOpen[newKey] = true;
+    renderPacking();
+    toast('已新增「' + gname + '」');
     return;
   }
 
