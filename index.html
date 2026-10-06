@@ -764,18 +764,6 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
   .pdel{opacity:0;transition:opacity .12s}
   .packrow:hover .pdel{opacity:1}
 }
-/* 已打包那一段的分隔線 */
-.packdiv{
-  display:flex;align-items:center;gap:8px;
-  margin:9px 0 5px;
-}
-.packdiv::before,.packdiv::after{
-  content:'';flex:1;height:1px;background:var(--line2);
-}
-.packdiv span{
-  flex:0 0 auto;font-size:10.5px;letter-spacing:.1em;
-  color:rgba(22,48,43,.32);
-}
 .packacts{display:flex;gap:6px;margin-top:6px}
 .packadd{
   flex:1;padding:7px;
@@ -2985,10 +2973,7 @@ function renderPacking(){
       out += '<div class="packitems">' +
         (empty ? '<p class="pempty">這組還沒有項目</p>' : '') +
         todo.map(itemHtml).join('') +
-        (okd.length
-          ? '<div class="packdiv"><span>已打包 ' + okd.length + '</span></div>' +
-            okd.map(itemHtml).join('')
-          : '') +
+        okd.map(itemHtml).join('') +
         (canEdit()
           ? '<div class="packacts">' +
               '<button class="packadd" data-packadd="' + esc(g.key) + '">＋ 加一項</button>' +
