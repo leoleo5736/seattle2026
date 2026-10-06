@@ -1509,7 +1509,11 @@ function pull(silent){
   if (!(DATA.members || []).length) renderPicker();
   if (!silent) status('sync', '同步中…');
 
-  jsonp(API_URL + '?action=all', function(res){
+  // 帶上自己的名字，伺服器就只回傳自己的打包清單（省掉同伴那幾百列）
+  var url = API_URL + '?action=all' +
+    (ME && !isGuest() ? '&me=' + encodeURIComponent(ME.name) : '');
+
+  jsonp(url, function(res){
     if (res && res.ok && res.data){
       DATA = res.data;
       gateState = 'ready';
@@ -2810,6 +2814,37 @@ function renderExpChart(list){
 var packOpen = {};      // { '小標題': true } 哪些組展開了
 var packQuery = '';
 var packHideDone = false;
+var packReflow = null;  // 打勾後延遲重排的計時器
+
+/* 打勾後只更新數字，不重畫整份清單 */
+function updatePackCounts(){
+  var mine = myPacking();
+  var done = mine.filter(packDone).length;
+
+  $('#cPack').textContent = mine.length ? (done + '/' + mine.length) : '';
+
+  var bar = $('#packBody').querySelector('.pgbar span');
+  var txt = $('#packBody').querySelector('.pgtxt');
+  if (bar) bar.style.width = (mine.length ? Math.round(done / mine.length * 100) : 0) + '%';
+  if (txt) txt.innerHTML = '已打包 <b>' + done + '</b> / ' + mine.length;
+
+  // 各組的 x/y
+  var byKey = {};
+  mine.forEach(function(r){
+    var k = String(r.g1 || '') + '｜' + String(r.g2 || '');
+    if (!byKey[k]) byKey[k] = { d:0, t:0 };
+    byKey[k].t++;
+    if (packDone(r)) byKey[k].d++;
+  });
+  Array.prototype.forEach.call($('#packBody').querySelectorAll('[data-packgroup]'), function(h){
+    var c = byKey[h.dataset.packgroup];
+    if (!c) return;
+    var el = h.querySelector('.pcount');
+    if (!el || el.classList.contains('zero')) return;
+    el.textContent = c.d + '/' + c.t;
+    el.classList.toggle('full', c.d === c.t);
+  });
+}
 
 function myPacking(){
   if (!ME) return [];
@@ -3551,6 +3586,13 @@ function setMe(m){
   $('#app').classList.add('on');
   renderAll();
   if (isGuest()) toast('訪客模式：可以看，但不能修改');
+
+  // 選完人才知道要抓誰的打包清單。
+  // 如果手上還沒有這個人的資料，就再同步一次。
+  if (!isGuest() && API_URL){
+    var has = (DATA.packing || []).some(function(r){ return String(r.owner) === m.name; });
+    if (!has) pull(true);
+  }
 }
 
 $('#meBtn').addEventListener('click', function(){
@@ -3682,7 +3724,22 @@ $('#packBody').addEventListener('click', function(e){
     var row = (DATA.packing || []).filter(function(r){ return r.id === pt.dataset.packtick; })[0];
     if (row){
       row.done = packDone(row) ? '' : 'true';
-      saveRow('packing', row);
+      row.updatedBy = ME ? ME.name : '';
+      row.updatedAt = new Date().toISOString().slice(0,19);
+
+      // 只動這一行和它的計數，不重畫 195 項。
+      // 整份重畫會卡一下、捲動位置也會跳掉。
+      var rowEl = pt.closest('.packrow');
+      if (rowEl) rowEl.classList.toggle('ok', packDone(row));
+      updatePackCounts();
+
+      saveCache();
+      push({ action:'save', sheet:'packing', rows:[row], actor: ME ? ME.name : '' });
+
+      // 打勾後位置要變（沉底），但等一下再重排，
+      // 不然手指還沒離開畫面就跳走，很難連續打勾
+      clearTimeout(packReflow);
+      packReflow = setTimeout(renderPacking, 1200);
     }
     return;
   }
