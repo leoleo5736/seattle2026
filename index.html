@@ -789,8 +789,9 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
   font-size:12px;color:var(--salmon);
 }
 .packdelgroup:hover{background:rgba(194,90,71,.07)}
-/* 空的組：標題淡一點，但高度跟其他組一樣，不要莫名變高 */
-.packgroup.empty .pname{color:rgba(22,48,43,.45)}
+/* 空的組：標題淡一點，但高度跟其他組一樣。
+   class 用 noitem 而不是 empty，避免撞到全域的 .empty */
+.packgroup.noitem .pname{color:rgba(22,48,43,.45)}
 .pcount.zero{background:transparent;color:rgba(22,48,43,.3)}
 .pempty{
   font-size:12px;color:rgba(22,48,43,.38);
@@ -2953,7 +2954,8 @@ function renderPacking(){
       lastG1 = g.g1;
       out += '<div class="packh1">' + esc(g.g1) + '</div>';
     }
-    out += '<div class="packgroup' + (open ? ' open' : '') + (empty ? ' empty' : '') + '">' +
+    // 注意：class 不能叫 empty，會撞到全域的 .empty（padding:34px）
+    out += '<div class="packgroup' + (open ? ' open' : '') + (empty ? ' noitem' : '') + '">' +
       '<button class="packhead" data-packgroup="' + esc(g.key) + '">' +
         '<span class="pcaret">' + (open ? '▾' : '▸') + '</span>' +
         '<span class="pname">' + esc(g.g2) + '</span>' +
