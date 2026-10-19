@@ -2674,15 +2674,19 @@ function renderExpenses(){
     // 預設只顯示「一起花了多少」。
     // 結算收在摺疊區裡，想看再點——這是記錄工具，不是催款單。
     // 刻意不放「平均每天」之類的指標，玩的時候不需要被數字盯著。
-    // 共同花費一格，每個人「自己的」各一格。不顯示誰欠誰。
+    // 全部總花費一格，每個人各一格。
+    // 每個人的花費 = 平分的那一半 + 算在自己名下的，
+    // 所以每個人加起來剛好等於總花費。誰付了多少、誰欠誰收在摺疊裡。
     var people = (DATA.members || []).map(function(m){ return m; });
+    var oweOf = {};
+    s.balance.forEach(function(b){ oweOf[b.name] = b.owe; });
     $('#expSummary').innerHTML =
       '<h3>總計 · ' + s.count + ' 筆</h3>' +
       '<div class="sgrid">' +
-        '<div><span>共同花費</span><b>' + money(s.shared) + '</b></div>' +
+        '<div><span>全部總花費</span><b>' + money(s.total) + '</b></div>' +
         people.map(function(m){
-          return '<div><span>' + esc(m.emoji || '') + ' ' + esc(m.name) + ' 個人</span>' +
-            '<b>' + money(s.personal[m.name] || 0) + '</b></div>';
+          return '<div><span>' + esc(m.emoji || '') + ' ' + esc(m.name) + ' 花費</span>' +
+            '<b>' + money(oweOf[m.name] || 0) + '</b></div>';
         }).join('') +
       '</div>' +
       '<button class="settletoggle" id="settleToggle" aria-expanded="' + (showSettle ? 'true' : 'false') + '">' +
