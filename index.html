@@ -845,6 +845,13 @@ body.dragging-now{user-select:none;-webkit-user-select:none}
   display:grid;place-items:center;font-size:16px;
 }
 .ebody{flex:1;min-width:0}
+.etag{
+  display:inline-block;margin-left:7px;padding:1px 7px;
+  border-radius:999px;font-size:10.5px;letter-spacing:.04em;
+  background:rgba(127,168,160,.18);color:var(--moss);
+  vertical-align:1px;white-space:nowrap;
+}
+.etag.lend{background:rgba(216,155,60,.16);color:#9A6A1E}
 .etitle{font-size:14px;line-height:1.4}
 .emeta{font-size:11px;color:rgba(22,48,43,.5);margin-top:2px}
 .eamt{
@@ -2551,30 +2558,56 @@ function expsInOrder(){
 }
 
 /* 結算：誰付了多少、該付多少、差額 */
+/* 這筆算誰的：空白或「大家」= 平分；否則是某個人自己的 */
+function expOwner(e){
+  var w = String(e.forWho || '').trim();
+  return (!w || w === '大家') ? '' : w;
+}
+
+/* 結算。
+   每個人「應負擔」= 共同花費 ÷ 人數 ＋ 算在自己名下的花費
+   差額 = 實際付的 − 應負擔
+   所以：
+   - 平分的東西：跟以前一樣各出一半
+   - 自己付自己的：付多少負擔多少，差額是 0，不影響結算
+   - 幫別人付（代墊）：付的人差額 +全額，被代墊的人 −全額，要還全額 */
 function settle(){
   var list = DATA.expenses || [];
   var members = (DATA.members || []).map(function(m){ return m.name; });
   if (!members.length) members = ['我'];
 
-  var total = 0, paid = {};
-  members.forEach(function(m){ paid[m] = 0; });
+  var total = 0, shared = 0;
+  var paid = {}, personal = {};
+  function ensure(name){
+    if (!(name in paid)) paid[name] = 0;
+    if (!(name in personal)) personal[name] = 0;
+  }
+  members.forEach(ensure);
 
   list.forEach(function(e){
     var v = twd(e);
     if (!v) return;
     total += v;
+
     var p = String(e.payer || '').trim();
-    if (p in paid) paid[p] += v;
-    else paid[p] = (paid[p] || 0) + v;   // 付款人不在成員名單裡也照算
+    if (p){ ensure(p); paid[p] += v; }      // 付款人不在成員名單裡也照算
+
+    var o = expOwner(e);
+    if (o){ ensure(o); personal[o] += v; }
+    else shared += v;
   });
 
   var names = Object.keys(paid);
-  var share = names.length ? total / names.length : 0;
+  var each = names.length ? shared / names.length : 0;
   var balance = names.map(function(m){
-    return { name:m, paid:paid[m], share:share, diff:paid[m] - share };
+    var owe = each + personal[m];
+    return { name:m, paid:paid[m], personal:personal[m], owe:owe, diff:paid[m] - owe };
   });
 
-  return { total:total, share:share, balance:balance, count:list.length };
+  return {
+    total:total, shared:shared, each:each,
+    personal:personal, balance:balance, count:list.length
+  };
 }
 
 /* 把差額轉成「誰該付誰多少」。
@@ -2608,7 +2641,7 @@ function settleHtml(s){
         var cls = b.diff > 1 ? 'up' : (b.diff < -1 ? 'down' : '');
         return '<div class="paidrow">' +
           '<span class="pn">' + esc(m && m.emoji ? m.emoji : '·') + ' ' + esc(b.name) + '</span>' +
-          '<span class="pv">付了 ' + money(b.paid) + '</span>' +
+          '<span class="pv">付了 ' + money(b.paid) + '　·　該出 ' + money(b.owe) + '</span>' +
           '<span class="pd ' + cls + '">' +
             (b.diff > 1 ? '多付 ' + money(b.diff)
               : (b.diff < -1 ? '少付 ' + money(-b.diff) : '剛好')) +
@@ -2641,11 +2674,16 @@ function renderExpenses(){
     // 預設只顯示「一起花了多少」。
     // 結算收在摺疊區裡，想看再點——這是記錄工具，不是催款單。
     // 刻意不放「平均每天」之類的指標，玩的時候不需要被數字盯著。
+    // 共同花費一格，每個人「自己的」各一格。不顯示誰欠誰。
+    var people = (DATA.members || []).map(function(m){ return m; });
     $('#expSummary').innerHTML =
       '<h3>總計 · ' + s.count + ' 筆</h3>' +
       '<div class="sgrid">' +
-        '<div><span>一起花了</span><b>' + money(s.total) + '</b></div>' +
-        '<div><span>每人約</span><b>' + money(s.share) + '</b></div>' +
+        '<div><span>共同花費</span><b>' + money(s.shared) + '</b></div>' +
+        people.map(function(m){
+          return '<div><span>' + esc(m.emoji || '') + ' ' + esc(m.name) + ' 個人</span>' +
+            '<b>' + money(s.personal[m.name] || 0) + '</b></div>';
+        }).join('') +
       '</div>' +
       '<button class="settletoggle" id="settleToggle" aria-expanded="' + (showSettle ? 'true' : 'false') + '">' +
         (showSettle ? '收起結算 ▲' : '看結算 ▼') + '</button>' +
@@ -2699,11 +2737,21 @@ function expRow(e){
   var ci = catInfo(e.category);
   var isUsd = String(e.currency).toUpperCase() === 'USD';
   var m = (DATA.members || []).filter(function(x){ return x.name === e.payer; })[0];
+
+  // 不是平分的帳目加個小標籤，一眼看得出來
+  var owner = expOwner(e);
+  var tag = '';
+  if (owner){
+    tag = (owner === String(e.payer || '').trim())
+      ? '<span class="etag">' + esc(owner) + ' 自己的</span>'
+      : '<span class="etag lend">' + esc(e.payer) + ' 代墊 · ' + esc(owner) + ' 的</span>';
+  }
+
   return '<div class="exprow">' +
     '<span class="ecat" style="background:' + ci.color + '22;color:' + ci.color + '">' +
       ci.emoji + '</span>' +
     '<div class="ebody">' +
-      '<p class="etitle">' + esc(e.title || ci.key) + '</p>' +
+      '<p class="etitle">' + esc(e.title || ci.key) + tag + '</p>' +
       '<p class="emeta">' +
         (e.date ? esc(dateLabel(normDate(e.date))) : '') +
         (e.payer ? '　·　' + esc(m && m.emoji ? m.emoji : '') + esc(e.payer) + ' 付' : '') +
@@ -3184,6 +3232,7 @@ var FORMS = {
     ['amount','金額','number'],
     ['currency','幣別','select', function(){ return ['TWD','USD']; }],
     ['payer','誰付的','select', function(){ return payerOptions(); }],
+    ['forWho','算誰的','select', function(){ return ['大家'].concat(payerOptions()); }],
     ['note','備註','textarea']
   ]
 };
@@ -3275,6 +3324,7 @@ function openDrawer(sheet, id){
       row.category = quickCat || '吃飯';
       row.currency = 'USD';               // 在美國，多半是刷美元
       row.payer = ME ? ME.name : payerOptions()[0];
+      row.forWho = '大家';                // 預設平分，遇到個人物品再改
       quickCat = '';
     }
     row.sort = ((DATA[sheet] || []).length + 1) * 10;
